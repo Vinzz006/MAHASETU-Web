@@ -1,0 +1,67 @@
+from typing import Optional
+from datetime import datetime
+from pydantic import BaseModel
+
+class LoginRequest(BaseModel):
+    username: str # mobile or email
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: str
+    name: str
+    role: str
+    department_id: Optional[str] = None
+    registration_status: str = "APPROVED"
+
+class UserResponse(BaseModel):
+    id: str
+    name: str
+    mobile: str
+    email: str
+    role: str
+    department_id: Optional[str] = None
+    registration_status: str = "APPROVED"
+
+from pydantic import BaseModel, field_validator
+import re
+
+class RegisterRequest(BaseModel):
+    firebase_token: Optional[str] = None
+    name: str
+    mobile: str
+    email: str
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_complexity(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters in length.")
+        if not re.search(r"[A-Za-z]", v):
+            raise ValueError("Password must contain at least one alphabetical letter.")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one numeric digit.")
+        return v
+
+class RegistrationResponse(BaseModel):
+    id: str
+    name: str
+    mobile: str
+    email: str
+    role: str
+    registration_status: str
+    message: str
+
+class PendingRegistrationItem(BaseModel):
+    id: str
+    name: str
+    mobile: str
+    email: str
+    role: str
+    registration_status: str
+    created_at: datetime
+
+class RejectRegistrationRequest(BaseModel):
+    reason: str

@@ -1,0 +1,14 @@
+import os
+import sys
+from pathlib import Path
+
+# Ensure backend root is in PYTHONPATH
+backend_dir = Path(__file__).resolve().parent.parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+# Set test environment flags
+os.environ["TESTING"] = "true"
+os.environ["JWT_SECRET"] = os.getenv("JWT_SECRET", "test-secret-key-only-for-automated-pytest-execution-94821")
+os.environ["DEMO_MODE"] = os.getenv("DEMO_MODE", "true")
+os.environ["ENABLE_INNOVATION_LAB"] = "true"

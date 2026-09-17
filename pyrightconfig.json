@@ -1,0 +1,30 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonPath": "C:\\Users\\shanm\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "include": [
+    "backend",
+    "database"
+  ],
+  "extraPaths": [
+    ".",
+    "backend",
+    ".venv/Lib/site-packages",
+    "C:\\Users\\shanm\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages",
+    "C:\\Users\\shanm\\AppData\\Roaming\\Python\\Python313\\site-packages"
+  ],
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Windows",
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": [
+        "..",
+        ".",
+        "../.venv/Lib/site-packages",
+        "C:\\Users\\shanm\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages",
+        "C:\\Users\\shanm\\AppData\\Roaming\\Python\\Python313\\site-packages"
+      ]
+    }
+  ]
+}

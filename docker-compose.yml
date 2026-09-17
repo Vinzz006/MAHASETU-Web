@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mahasetu-postgres
+    environment:
+      POSTGRES_USER: mahasetu_user
+      POSTGRES_PASSWORD: mahasetu_password
+      POSTGRES_DB: mahasetu_db
+    ports:
+      - "5433:5432" # Use 5433 on host to avoid conflict with existing postgres instances
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mahasetu_user -d mahasetu_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: mahasetu-backend
+    environment:
+      DATABASE_URL: postgresql://mahasetu_user:mahasetu_password@postgres:5432/mahasetu_db
+      JWT_SECRET: mahasetu-hackathon-2026-interop-secret-key-pune
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mahasetu-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
