@@ -1,3 +1,5 @@
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -11,12 +13,17 @@ from backend.app.schemas.assistant import (
     ChatRequest, ChatResponse, ChatMessageResponse,
     ConversationSummary, ConversationDetail
 )
-from backend.app.auth import get_current_user
+from backend.app.auth import get_current_user, get_current_user_optional
 from backend.app.services.assistant import (
-    build_system_context, generate_assistant_response
+    build_system_context, generate_assistant_response, get_gemini_metadata
 )
 
 router = APIRouter(prefix="/api/assistant", tags=["AI Assistant"])
+
+@router.get("/status")
+def get_assistant_model_status():
+    """Returns the operational status of Google Gemini AI and grounding engine."""
+    return get_gemini_metadata()
 
 # Reference default services list
 DEFAULT_SERVICES = [
@@ -54,11 +61,35 @@ DEFAULT_SERVICES = [
 def chat_with_assistant(
     request: ChatRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Interacts with MahaSetu Mitra AI assistant with grounded citizen context."""
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    # Handle unauthenticated visitor / guest query on landing page
+    if not current_user:
+        reply_text = generate_assistant_response(
+            user_message=request.message.strip(),
+            conversation_history=[],
+            system_context=build_system_context(
+                user_name="Guest Citizen",
+                applications=[],
+                profile_info=None,
+                services=DEFAULT_SERVICES
+            ),
+            applications=[],
+            services=DEFAULT_SERVICES
+        )
+        return ChatResponse(
+            conversation_id="guest-session",
+            message=ChatMessageResponse(
+                id=str(uuid.uuid4()),
+                sender="assistant",
+                content=reply_text,
+                timestamp=datetime.now(timezone.utc)
+            )
+        )
 
     # 1. Retrieve or create conversation
     conv = None

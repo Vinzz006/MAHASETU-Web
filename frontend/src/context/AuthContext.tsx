@@ -77,15 +77,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentUser(null);
       }
 
-      // Try fetching demo personas only if authenticated or if demo endpoint is accessible
-      try {
-        const fetchedPersonas = await api.getPersonas();
-        setPersonas(fetchedPersonas);
-      } catch {
+      // Only fetch personas if authenticated session exists
+      if (savedToken) {
+        try {
+          const fetchedPersonas = await api.getPersonas();
+          setPersonas(fetchedPersonas);
+        } catch {
+          setPersonas([]);
+        }
+      } else {
         setPersonas([]);
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     }
     loadUserSession();
   }, []);

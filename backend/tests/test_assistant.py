@@ -179,3 +179,104 @@ def test_assistant_live_mode_fails_loudly_without_key():
 
     # Restore DEMO_MODE
     os.environ["DEMO_MODE"] = "true"
+
+def test_assistant_model_status_endpoint(asst_env):
+    """Verifies that the /api/assistant/status endpoint returns Google Gemini metadata."""
+    client = asst_env["client"]
+    res = client.get("/api/assistant/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["provider"] == "Google Gemini"
+    assert "model" in data
+    assert "gemini" in data["model"].lower()
+    assert "gemini_active" in data
+    assert data["grounding_enabled"] is True
+
+def test_assistant_gemini_mocked_invocation(monkeypatch):
+    """Verifies that generate_assistant_response invokes Google Gemini with proper configuration when GEMINI_API_KEY is present."""
+    from unittest.mock import MagicMock
+    import google.generativeai as genai
+
+    os.environ["DEMO_MODE"] = "true"
+    os.environ["GEMINI_API_KEY"] = "AIzaSyFakeKeyForTest12345"
+    os.environ["GEMINI_MODEL"] = "gemini-1.5-flash"
+
+    mock_model = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = "Hello! I am MahaSetu Mitra powered by Google Gemini. Your application MH-ASST-2026-001 is being processed."
+    mock_model.generate_content.return_value = mock_response
+
+    monkeypatch.setattr(genai, "configure", lambda *args, **kwargs: None)
+    monkeypatch.setattr(genai, "GenerativeModel", lambda *args, **kwargs: mock_model)
+
+    reply = generate_assistant_response(
+        user_message="Tell me about my application",
+        conversation_history=[{"sender": "user", "content": "Hi"}],
+        system_context="You are MahaSetu Mitra.",
+        applications=[{"application_number": "MH-ASST-2026-001", "status": "IN_REVIEW", "current_department": "DEPT_B"}],
+        services=[]
+    )
+
+    assert "Google Gemini" in reply
+    assert "MH-ASST-2026-001" in reply
+    assert mock_model.generate_content.called
+
+    os.environ["GEMINI_API_KEY"] = ""
+
+def test_assistant_gemini_fallback_on_api_error(monkeypatch):
+    """Verifies that if the Gemini API call encounters an error, the assistant gracefully falls back to grounded heuristics."""
+    from unittest.mock import MagicMock
+    import google.generativeai as genai
+
+    os.environ["DEMO_MODE"] = "true"
+    os.environ["GEMINI_API_KEY"] = "mock-key-causing-error"
+
+    mock_model = MagicMock()
+    mock_model.generate_content.side_effect = Exception("503 Service Unavailable: Quota Exceeded")
+
+    monkeypatch.setattr(genai, "configure", lambda *args, **kwargs: None)
+    monkeypatch.setattr(genai, "GenerativeModel", lambda *args, **kwargs: mock_model)
+
+    # Should not raise; should fall back gracefully
+    reply = generate_assistant_response(
+        user_message="What is the status of my application?",
+        conversation_history=[],
+        system_context="You are MahaSetu Mitra.",
+        applications=[{"application_number": "MH-ASST-2026-001", "status": "REWORK", "current_department": "ADMIN", "rejection_reason": "Blurry document"}],
+        services=[]
+    )
+
+    assert "MH-ASST-2026-001" in reply
+    assert "Blurry document" in reply
+
+    os.environ["GEMINI_API_KEY"] = ""
+
+def test_assistant_multilingual_marathi_hindi_grounding():
+    """Verifies native Marathi and Hindi grounding responses in heuristic fallback mode."""
+    os.environ["DEMO_MODE"] = "true"
+    os.environ["GEMINI_API_KEY"] = ""
+
+    apps = [{"application_number": "MH-ASST-999", "status": "IN_REVIEW", "current_department": "DEPT_A"}]
+
+    # Marathi query
+    reply_mr = generate_assistant_response(
+        user_message="माझ्या अर्जाची स्थिती काय आहे?",
+        conversation_history=[],
+        system_context="Context",
+        applications=apps,
+        services=[]
+    )
+    assert "MH-ASST-999" in reply_mr
+    assert "सद्यस्थिती" in reply_mr
+
+    # Hindi query
+    reply_hi = generate_assistant_response(
+        user_message="मेरे आवेदन की स्थिति क्या है?",
+        conversation_history=[],
+        system_context="Context",
+        applications=apps,
+        services=[]
+    )
+    assert "MH-ASST-999" in reply_hi
+    assert "वर्तमान स्थिति" in reply_hi
+

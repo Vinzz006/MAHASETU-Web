@@ -1873,6 +1873,17 @@ export const api = {
     return res.json();
   },
 
+  async getAssistantStatus(): Promise<{
+    gemini_active: boolean;
+    model: string;
+    provider: string;
+    grounding_enabled: boolean;
+  }> {
+    const res = await fetch(`${API_BASE}/assistant/status`);
+    if (!res.ok) throw new Error('Failed to fetch assistant model status');
+    return res.json();
+  },
+
   // Phase 11: Citizen Smart Dashboard
   async getCitizenDashboardSummary(): Promise<any> {
     const res = await fetch(`${API_BASE}/applications/citizen-summary`, { headers: getAuthHeader() });

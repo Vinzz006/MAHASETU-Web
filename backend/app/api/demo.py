@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
+from backend.app.auth import require_roles
 from backend.app.integrations.department_b import DepartmentBFailureController
 from backend.app.events.publisher import publish_event
 
@@ -15,7 +16,7 @@ def get_demo_status():
         "system_status": "EXCEPTION_SIMULATION_ACTIVE" if DepartmentBFailureController.simulate_failure else "ALL_SYSTEMS_NOMINAL"
     }
 
-@router.post("/toggle-failure")
+@router.post("/toggle-failure", dependencies=[Depends(require_roles(["OFFICER", "SYSTEM_ADMIN"]))])
 def toggle_department_b_failure(enabled: bool = None):
     if enabled is not None:
         DepartmentBFailureController.simulate_failure = enabled
