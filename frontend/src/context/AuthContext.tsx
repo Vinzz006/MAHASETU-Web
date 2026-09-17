@@ -67,25 +67,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             registration_status: profile.registration_status,
             token: savedToken
           });
+
+          // Only fetch personas if user has Administrator privileges
+          if (profile.role === 'ADMIN' || profile.role === 'SYSTEM_ADMIN') {
+            try {
+              const fetchedPersonas = await api.getPersonas();
+              setPersonas(fetchedPersonas);
+            } catch {
+              setPersonas([]);
+            }
+          } else {
+            setPersonas([]);
+          }
         } catch (err) {
           console.warn('Saved token invalid or expired. Session cleared.');
           localStorage.removeItem('mahasetu_token');
           localStorage.removeItem('mahasetu_role');
           setCurrentUser(null);
-        }
-      } else {
-        setCurrentUser(null);
-      }
-
-      // Only fetch personas if authenticated session exists
-      if (savedToken) {
-        try {
-          const fetchedPersonas = await api.getPersonas();
-          setPersonas(fetchedPersonas);
-        } catch {
           setPersonas([]);
         }
       } else {
+        setCurrentUser(null);
         setPersonas([]);
       }
       setLoading(false);
@@ -117,6 +119,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(matched);
     localStorage.setItem('mahasetu_token', res.access_token);
     localStorage.setItem('mahasetu_role', res.role);
+
+    if (res.role === 'ADMIN' || res.role === 'SYSTEM_ADMIN') {
+      try {
+        const fetchedPersonas = await api.getPersonas();
+        setPersonas(fetchedPersonas);
+      } catch {
+        setPersonas([]);
+      }
+    } else {
+      setPersonas([]);
+    }
   };
 
   const loginWithFirebase = async (email: string, password: string) => {

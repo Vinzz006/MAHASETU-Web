@@ -208,7 +208,7 @@ def reject_registration(
 @router.get("/personas")
 def get_demo_personas(
     db: Session = Depends(get_db),
-    admin_user: User = Depends(require_roles(["SYSTEM_ADMIN"]))
+    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
 ):
     """Returns quick-switch credentials and tokens strictly for local demo evaluation when authenticated as SYSTEM_ADMIN."""
     from backend.app.firebase import is_demo_mode

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDemo } from '../context/DemoContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -17,17 +17,41 @@ import {
   Coins, KeyRound, HeartHandshake, Sprout,
   Baby, Bug, Calculator, Sun, PhoneCall,
   Wheat, Droplet, Bus,
-  Heart, CloudFog, BrainCircuit, Trophy, Beaker
+  Heart, CloudFog, BrainCircuit, Trophy, Beaker,
+  LogIn, LogOut, User
 } from 'lucide-react';
 
 export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) => {
-  const { currentUser, switchPersona } = useAuth();
+  const navigate = useNavigate();
+  const { currentUser, switchPersona, logout, personas } = useAuth();
   const { isFailureSimulated, inspectTransformation } = useDemo();
   const { language, toggleLanguage, t } = useLanguage();
   const location = useLocation();
 
   const [labDropdownOpen, setLabDropdownOpen] = useState(false);
   const [labTab, setLabTab] = useState<'citizen' | 'admin'>('citizen');
+
+  const handlePersonaClick = (role: 'CITIZEN' | 'OFFICER' | 'ADMIN') => {
+    if (!currentUser || personas.length === 0) {
+      navigate(`/login?role=${role.toLowerCase()}`);
+      return;
+    }
+    if (role === 'CITIZEN') {
+      switchPersona('CITIZEN');
+      navigate('/citizen/dashboard');
+    } else if (role === 'OFFICER') {
+      const officerPersona = personas.find(p => ['OFFICER', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C'].includes(p.role));
+      if (officerPersona) {
+        switchPersona(officerPersona.role);
+      } else {
+        switchPersona('OFFICER');
+      }
+      navigate('/admin/officer');
+    } else {
+      switchPersona('SYSTEM_ADMIN');
+      navigate('/admin/dashboard');
+    }
+  };
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Check if current route is inside innovation lab
@@ -450,30 +474,73 @@ export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) =>
                 Persona:
               </span>
               <button
-                onClick={() => switchPersona('CITIZEN')}
+                onClick={() => handlePersonaClick('CITIZEN')}
                 className={`px-2 py-1 rounded transition-colors text-[11px] ${
                   currentUser?.role === 'CITIZEN' ? 'bg-amber-500 text-slate-950 font-bold shadow' : 'text-slate-300 hover:text-white'
                 }`}
+                title="Citizen Portal"
               >
                 Citizen
               </button>
               <button
-                onClick={() => switchPersona('OFFICER')}
+                onClick={() => handlePersonaClick('OFFICER')}
                 className={`px-2 py-1 rounded transition-colors text-[11px] ${
-                  currentUser?.role === 'OFFICER' ? 'bg-blue-600 text-white font-bold shadow' : 'text-slate-300 hover:text-white'
+                  ['OFFICER', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C'].includes(currentUser?.role || '')
+                    ? 'bg-blue-600 text-white font-bold shadow'
+                    : 'text-slate-300 hover:text-white'
                 }`}
+                title="Department Officer Portal"
               >
                 Officer
               </button>
               <button
-                onClick={() => switchPersona('SYSTEM_ADMIN')}
+                onClick={() => handlePersonaClick('ADMIN')}
                 className={`px-2 py-1 rounded transition-colors text-[11px] ${
-                  currentUser?.role === 'SYSTEM_ADMIN' ? 'bg-purple-600 text-white font-bold shadow' : 'text-slate-300 hover:text-white'
+                  ['SYSTEM_ADMIN', 'ADMIN', 'AUDITOR'].includes(currentUser?.role || '')
+                    ? 'bg-purple-600 text-white font-bold shadow'
+                    : 'text-slate-300 hover:text-white'
                 }`}
+                title="Administrator Portal"
               >
                 Admin
               </button>
             </div>
+
+            {/* Auth Action: Sign In vs Current User Profile & Sign Out */}
+            {currentUser ? (
+              <div className="flex items-center gap-1.5 pl-1 border-l border-white/10">
+                <button
+                  onClick={() => {
+                    if (currentUser.role === 'CITIZEN') navigate('/citizen/profile');
+                    else if (['ADMIN', 'SYSTEM_ADMIN'].includes(currentUser.role)) navigate('/admin/dashboard');
+                    else navigate('/department/dashboard');
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 transition-colors"
+                  title={`Logged in as ${currentUser.name} (${currentUser.role})`}
+                >
+                  <User className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline font-medium max-w-[100px] truncate">{currentUser.name}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    logout();
+                    navigate('/login');
+                  }}
+                  className="p-1.5 rounded text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition-colors"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 transition-all shadow"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </Link>
+            )}
 
             {/* Mobile Hamburger Toggle */}
             <button
@@ -490,6 +557,21 @@ export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) =>
       {/* Mobile / Tablet Dropdown Menu */}
       {mobileMenuOpen && (
         <div className="xl:hidden bg-[#0b1f33] border-t border-white/10 px-4 py-4 space-y-3 text-xs">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+            <span className="text-[11px] font-bold text-amber-400 uppercase">Portals &amp; Roles</span>
+            <div className="flex gap-1.5">
+              <Link to="/login?role=citizen" onClick={() => setMobileMenuOpen(false)} className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                Citizen
+              </Link>
+              <Link to="/login?role=officer" onClick={() => setMobileMenuOpen(false)} className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 text-[10px] font-bold">
+                Officer
+              </Link>
+              <Link to="/login?role=admin" onClick={() => setMobileMenuOpen(false)} className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold">
+                Admin
+              </Link>
+            </div>
+          </div>
+
           <div className="text-[10px] uppercase font-bold text-amber-400 mb-1">Core Interoperability (PS 26129)</div>
           <div className="grid grid-cols-2 gap-2">
             <Link to="/" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-white/5 rounded-lg text-slate-200 hover:bg-white/10 font-medium">
@@ -532,6 +614,33 @@ export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) =>
               </Link>
             </div>
           </div>
+
+          {currentUser ? (
+            <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+              <span className="text-slate-300 text-[11px]">Logged in as <strong>{currentUser.name}</strong></span>
+              <button
+                onClick={() => {
+                  logout();
+                  setMobileMenuOpen(false);
+                  navigate('/login');
+                }}
+                className="px-2.5 py-1 rounded bg-rose-500/20 text-rose-300 text-[11px] font-bold"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <div className="pt-2 border-t border-white/10">
+              <Link
+                to="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full flex items-center justify-center gap-1.5 p-2 rounded-lg bg-amber-500 text-slate-950 font-bold"
+              >
+                <LogIn className="w-4 h-4" />
+                Sign In to MahaSetu
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </header>

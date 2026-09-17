@@ -16,10 +16,11 @@ from backend.app.models.consent import Consent
 from backend.app.models.notification import Notification
 from backend.app.models.resident_profile import ResidentProfile
 from backend.app.models.workflow import WorkflowStep
+from backend.app.models.transaction import DepartmentTransaction
 from backend.app.schemas.application import ApplicationCreate, ApplicationSummaryResponse, ApplicationDetailResponse
 from backend.app.schemas.workflow import ApplicationResubmitRequest
 from backend.app.auth import get_current_user
-from backend.app.services.workflow import WorkflowEngine
+from backend.app.services.workflow import WorkflowEngine, WORKFLOW_PIPELINE
 from backend.app.services.consent import ConsentManager
 from backend.app.services.audit import create_audit_log
 from backend.app.events.publisher import publish_event
@@ -259,6 +260,8 @@ def _build_application_detail(app: Application, db: Session) -> ApplicationDetai
         }
 
     # Fetch workflow steps
+    order_map = {p["step_name"]: idx for idx, p in enumerate(WORKFLOW_PIPELINE)}
+    ordered_steps = sorted(app.workflow_steps, key=lambda s: order_map.get(s.step_name, 999))
     steps = [
         {
             "id": s.id,
@@ -269,7 +272,7 @@ def _build_application_detail(app: Application, db: Session) -> ApplicationDetai
             "completed_at": s.completed_at.isoformat() if s.completed_at else None,
             "details": s.details or {}
         }
-        for s in app.workflow_steps
+        for s in ordered_steps
     ]
 
     # Fetch transactions
@@ -436,15 +439,20 @@ def list_applications(
     if current_user.role == "CITIZEN":
         query = query.filter(Application.citizen_id == current_user.id)
 
-    # Department / Officer: limited to assigned department + active AUTHORIZED consent
+    # Department / Officer: limited to assigned department OR prior department transactions + active AUTHORIZED consent
     elif current_user.role in ("DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C", "OFFICER"):
         dept_candidates = _get_dept_candidates(current_user)
         authorized_app_ids = [
             c.application_id for c in db.query(Consent.application_id).filter(Consent.status == "AUTHORIZED").all()
         ]
+        apps_with_dept_txns = [
+            t.application_id for t in db.query(DepartmentTransaction.application_id).filter(
+                DepartmentTransaction.department_id.in_(list(dept_candidates))
+            ).all()
+        ]
         query = query.filter(
             Application.id.in_(authorized_app_ids),
-            Application.current_department.in_(list(dept_candidates))
+            (Application.current_department.in_(list(dept_candidates)) | Application.id.in_(apps_with_dept_txns))
         )
 
     # Auditor / Admin: broad oversight with audit logging

@@ -223,6 +223,8 @@ def init_db_and_seed():
             ("IDENTITY_VERIFICATION", "DEPT_A", "COMPLETED", 110, 105),
             ("ELIGIBILITY_VERIFICATION", "DEPT_B", "COMPLETED", 105, 95),
             ("DEPARTMENT_APPROVAL", "DEPT_C", "PENDING", None, None),
+            ("ADMIN_REVIEW", "ADMIN", "PENDING", None, None),
+            ("AUDITOR_REVIEW", "AUDIT", "PENDING", None, None),
             ("APPLICATION_COMPLETED", "PORTAL", "PENDING", None, None)
         ]
 

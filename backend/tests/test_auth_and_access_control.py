@@ -66,6 +66,16 @@ def test_setup():
         registration_status="APPROVED",
         hashed_password=get_password_hash("mahasetu123")
     )
+    dept_a = User(
+        id="OFF-TEST-DEPTA",
+        name="Officer Dept A",
+        mobile="8000000002",
+        email="depta@officer.gov.in",
+        role="DEPARTMENT_A",
+        department_id="DEPT_A",
+        registration_status="APPROVED",
+        hashed_password=get_password_hash("mahasetu123")
+    )
     admin = User(
         id="ADM-TEST-001",
         name="Admin Deshmukh",
@@ -75,13 +85,14 @@ def test_setup():
         registration_status="APPROVED",
         hashed_password=get_password_hash("mahasetu123")
     )
-    db.add_all([citizen_1, citizen_2, officer, admin])
+    db.add_all([citizen_1, citizen_2, officer, dept_a, admin])
     db.commit()
 
     tokens = {
         "citizen_1": create_access_token({"sub": citizen_1.id, "role": citizen_1.role, "name": citizen_1.name}),
         "citizen_2": create_access_token({"sub": citizen_2.id, "role": citizen_2.role, "name": citizen_2.name}),
         "officer": create_access_token({"sub": officer.id, "role": officer.role, "name": officer.name}),
+        "dept_a": create_access_token({"sub": dept_a.id, "role": dept_a.role, "name": dept_a.name}),
         "admin": create_access_token({"sub": admin.id, "role": admin.role, "name": admin.name}),
     }
 
@@ -143,6 +154,12 @@ def test_rbac_officer_and_admin_routes(test_setup):
     assert client.get("/api/dashboard/metrics", headers=officer_headers).status_code == 200
     assert client.get("/api/dashboard/exceptions", headers=officer_headers).status_code == 200
     assert client.get("/api/dashboard/audit-logs", headers=officer_headers).status_code == 200
+
+    # Department A officer accessing officer routes -> 200 (PS 26129 fix for Dept A access)
+    dept_a_headers = {"Authorization": f"Bearer {tokens['dept_a']}"}
+    assert client.get("/api/dashboard/metrics", headers=dept_a_headers).status_code == 200
+    assert client.get("/api/dashboard/exceptions", headers=dept_a_headers).status_code == 200
+
     # Officer accessing system_admin only route -> 403
     assert client.get("/api/dashboard/schema-assistant", headers=officer_headers).status_code == 403
     assert client.get("/api/key-rotation/ring-status", headers=officer_headers).status_code == 403

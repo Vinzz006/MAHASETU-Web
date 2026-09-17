@@ -15,12 +15,14 @@ export const AdminDashboardPage: React.FC = () => {
   const [pendingUsers, setPendingUsers] = useState<PendingRegistration[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Rework Modal State
   const [reworkAppId, setReworkAppId] = useState<string | null>(null);
   const [reworkReason, setReworkReason] = useState('');
   const [reworkComments, setReworkComments] = useState('');
+  const [pipelineTab, setPipelineTab] = useState<'ADMIN_PENDING' | 'DEPT_PIPELINE'>('ADMIN_PENDING');
 
   const loadDashboardData = async () => {
     try {
@@ -32,8 +34,10 @@ export const AdminDashboardPage: React.FC = () => {
       setMetrics(m);
       setPendingUsers(pending);
       setApplications(apps);
-    } catch (e) {
+      setError(null);
+    } catch (e: any) {
       console.error('Failed to load admin dashboard data', e);
+      setError(e.message || 'Failed to load governance telemetry');
     } finally {
       setLoading(false);
     }
@@ -86,6 +90,18 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  const handleAdvanceWorkflowApp = async (appId: string) => {
+    setActionLoading(`advance-app-${appId}`);
+    try {
+      await api.advanceWorkflow(appId);
+      await loadDashboardData();
+    } catch (e: any) {
+      alert(e.message || 'Failed to advance workflow step');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSubmitRework = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reworkAppId) return;
@@ -107,6 +123,26 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  if (error && !metrics) {
+    return (
+      <div className="max-w-xl mx-auto my-20 p-6 bg-rose-50 border border-rose-200 rounded-xl text-center space-y-3">
+        <AlertTriangle className="w-8 h-8 text-rose-600 mx-auto" />
+        <h3 className="text-sm font-bold text-rose-900">Governance Console Telemetry Unavailable</h3>
+        <p className="text-xs text-rose-700">{error}</p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            setError(null);
+            loadDashboardData();
+          }}
+          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow transition-colors"
+        >
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
+
   if (loading || !metrics) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center text-sm text-slate-500">
@@ -119,6 +155,11 @@ export const AdminDashboardPage: React.FC = () => {
   // Applications awaiting Admin review: status is APPROVAL_STARTED or current_department is ADMIN
   const appsAwaitingAdmin = applications.filter(
     (a) => a.current_department === 'ADMIN' || a.status === 'APPROVAL_STARTED'
+  );
+
+  // Applications in active department pipeline stages (Dept A, Dept B, Dept C)
+  const deptPipelineApps = applications.filter(
+    (a) => a.status !== 'COMPLETED' && a.status !== 'EXCEPTION' && a.current_department !== 'ADMIN' && a.status !== 'APPROVAL_STARTED'
   );
 
   const statusCounts = applications.reduce((acc: Record<string, number>, a) => {
@@ -234,78 +275,180 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Section 1: Applications Awaiting Admin Review */}
+      {/* Section 1: Administrative Reviews & Department Pipeline Queues */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-8 overflow-hidden">
-        <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-blue-900" />
             <h2 className="text-sm font-bold text-slate-800">
-              Applications Awaiting Administrative Review ({appsAwaitingAdmin.length})
+              Administrative Reviews &amp; Department Pipeline Actions
             </h2>
           </div>
-          <span className="text-[11px] text-slate-500">
-            Sign-off triggers transition to Auditor verification
-          </span>
+
+          <div className="flex items-center gap-2 bg-slate-200/70 p-1 rounded-lg text-xs font-semibold">
+            <button
+              onClick={() => setPipelineTab('ADMIN_PENDING')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                pipelineTab === 'ADMIN_PENDING'
+                  ? 'bg-white text-blue-950 font-bold shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Awaiting Admin Sign-Off ({appsAwaitingAdmin.length})
+            </button>
+            <button
+              onClick={() => setPipelineTab('DEPT_PIPELINE')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                pipelineTab === 'DEPT_PIPELINE'
+                  ? 'bg-white text-blue-950 font-bold shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Department Queues: Dept A / B / C ({deptPipelineApps.length})
+            </button>
+          </div>
         </div>
 
-        {appsAwaitingAdmin.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-500">
-            No applications currently awaiting admin sign-off. All scheme pipelines are flowing smoothly.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100/75 text-slate-600 font-bold border-b border-slate-200 uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="p-3 pl-5">Application #</th>
-                  <th className="p-3">Citizen Name</th>
-                  <th className="p-3">Scheme</th>
-                  <th className="p-3">Department Flow</th>
-                  <th className="p-3">Income & Demographics</th>
-                  <th className="p-3 text-right pr-5">Review Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {appsAwaitingAdmin.map((app) => (
-                  <tr key={app.id} className="hover:bg-slate-50/50">
-                    <td className="p-3 pl-5 font-mono font-bold text-blue-950">
-                      <Link to={`/applications/${app.id}/track`} className="hover:underline">
-                        {app.application_number}
-                      </Link>
-                    </td>
-                    <td className="p-3 font-medium text-slate-800">{app.citizen_name}</td>
-                    <td className="p-3 text-slate-600">{app.service_name}</td>
-                    <td className="p-3">
-                      <span className="inline-flex items-center gap-1 font-mono text-[10px] bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-slate-700">
-                        DEPT_A → DEPT_B → DEPT_C → <strong className="text-blue-900">ADMIN</strong>
-                      </span>
-                    </td>
-                    <td className="p-3 text-slate-600">
-                      ₹{Number(app.citizen_data?.annual_income || 180000).toLocaleString('en-IN')} / yr
-                    </td>
-                    <td className="p-3 text-right pr-5 space-x-2">
-                      <button
-                        onClick={() => handleAdminApproveApp(app.id)}
-                        disabled={actionLoading === `approve-app-${app.id}`}
-                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs shadow-sm transition-colors"
-                      >
-                        {actionLoading === `approve-app-${app.id}` ? 'Approving...' : 'Sign-off & Approve'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setReworkAppId(app.id);
-                          setReworkReason('Please provide valid income certificate proof under scheme threshold.');
-                        }}
-                        className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-xs shadow-sm transition-colors"
-                      >
-                        Request Rework
-                      </button>
-                    </td>
+        {/* Tab 1: Awaiting Admin Sign-Off */}
+        {pipelineTab === 'ADMIN_PENDING' && (
+          appsAwaitingAdmin.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-500">
+              No applications currently awaiting admin sign-off. All scheme pipelines are flowing smoothly.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100/75 text-slate-600 font-bold border-b border-slate-200 uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="p-3 pl-5">Application #</th>
+                    <th className="p-3">Citizen Name</th>
+                    <th className="p-3">Scheme</th>
+                    <th className="p-3">Department Flow</th>
+                    <th className="p-3">Income & Demographics</th>
+                    <th className="p-3 text-right pr-5">Review Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {appsAwaitingAdmin.map((app) => (
+                    <tr key={app.id} className="hover:bg-slate-50/50">
+                      <td className="p-3 pl-5 font-mono font-bold text-blue-950">
+                        <Link to={`/applications/${app.id}/track`} className="hover:underline">
+                          {app.application_number}
+                        </Link>
+                      </td>
+                      <td className="p-3 font-medium text-slate-800">{app.citizen_name}</td>
+                      <td className="p-3 text-slate-600">{app.service_name}</td>
+                      <td className="p-3">
+                        <span className="inline-flex items-center gap-1 font-mono text-[10px] bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-slate-700">
+                          DEPT_A → DEPT_B → DEPT_C → <strong className="text-blue-900">ADMIN</strong>
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-600">
+                        ₹{Number(app.citizen_data?.annual_income || 180000).toLocaleString('en-IN')} / yr
+                      </td>
+                      <td className="p-3 text-right pr-5 space-x-2">
+                        <button
+                          onClick={() => handleAdminApproveApp(app.id)}
+                          disabled={actionLoading === `approve-app-${app.id}`}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs shadow-sm transition-colors"
+                        >
+                          {actionLoading === `approve-app-${app.id}` ? 'Approving...' : 'Sign-off & Approve'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setReworkAppId(app.id);
+                            setReworkReason('Please provide valid income certificate proof under scheme threshold.');
+                          }}
+                          className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-xs shadow-sm transition-colors"
+                        >
+                          Request Rework
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+
+        {/* Tab 2: Department Queues: Dept A, Dept B, Dept C */}
+        {pipelineTab === 'DEPT_PIPELINE' && (
+          deptPipelineApps.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-500">
+              No applications currently queued in Department A, B, or C.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100/75 text-slate-600 font-bold border-b border-slate-200 uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="p-3 pl-5">Application #</th>
+                    <th className="p-3">Citizen Name</th>
+                    <th className="p-3">Scheme</th>
+                    <th className="p-3">Current Custody</th>
+                    <th className="p-3">Current Status</th>
+                    <th className="p-3 text-right pr-5">Administrative Intervention</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {deptPipelineApps.map((app) => (
+                    <tr key={app.id} className="hover:bg-slate-50/50">
+                      <td className="p-3 pl-5 font-mono font-bold text-blue-950">
+                        <Link to={`/applications/${app.id}/track`} className="hover:underline">
+                          {app.application_number}
+                        </Link>
+                      </td>
+                      <td className="p-3 font-medium text-slate-800">{app.citizen_name}</td>
+                      <td className="p-3 text-slate-600">{app.service_name}</td>
+                      <td className="p-3 font-mono font-bold text-slate-700">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          app.current_department === 'DEPT_A' ? 'bg-blue-100 text-blue-900 border border-blue-200' :
+                          app.current_department === 'DEPT_B' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
+                          app.current_department === 'DEPT_C' ? 'bg-purple-100 text-purple-900 border border-purple-200' :
+                          'bg-slate-100 text-slate-800'
+                        }`}>
+                          {app.current_department}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className="text-[10px] font-semibold text-slate-600">
+                          {app.status.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right pr-5 space-x-2">
+                        <button
+                          onClick={() => handleAdvanceWorkflowApp(app.id)}
+                          disabled={actionLoading === `advance-app-${app.id}`}
+                          className={`px-3 py-1 font-bold rounded text-xs shadow-sm transition-colors ${
+                            app.current_department === 'DEPT_C'
+                              ? 'bg-purple-700 hover:bg-purple-600 text-white'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                          }`}
+                        >
+                          {actionLoading === `advance-app-${app.id}`
+                            ? 'Authorizing...'
+                            : app.current_department === 'DEPT_A'
+                            ? '✓ Grant Dept A Identity'
+                            : app.current_department === 'DEPT_B'
+                            ? '✓ Grant Dept B Eligibility'
+                            : app.current_department === 'DEPT_C'
+                            ? '✓ Grant Dept C Sanction'
+                            : `✓ Grant (${app.current_department})`}
+                        </button>
+                        <Link
+                          to={`/applications/${app.id}/track`}
+                          className="px-2.5 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded text-xs border border-slate-200 transition-colors inline-block"
+                        >
+                          Track Journey →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
 

@@ -136,18 +136,18 @@ def get_current_user_optional(
     return None
 
 def _expand_roles(roles: List[str]) -> Set[str]:
-    """Expands standard 6 roles and backward-compatible legacy roles without privilege escalation."""
+    """Expands standard roles and backward-compatible legacy roles without privilege escalation."""
     expanded = set(roles)
     for r in list(roles):
         if r in ("ADMIN", "SYSTEM_ADMIN"):
             expanded.update(["ADMIN", "SYSTEM_ADMIN"])
-        elif r in ("OFFICER", "DEPARTMENT_C"):
-            expanded.update(["OFFICER", "DEPARTMENT_C"])
+        elif r in ("OFFICER", "DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C"):
+            # All department officers (Dept A, Dept B, Dept C) and generic officer roles share the officer capability tier
+            expanded.update(["OFFICER", "DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C"])
         elif r == "DEPARTMENT_ADMIN":
-            # Department admin can access departmental functions, but NEVER system admin or central admin
-            expanded.update(["DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C"])
-        elif r == "OFFICER":
-            expanded.update(["DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C"])
+            # Department admin can access departmental functions and officer actions,
+            # but NEVER system admin or central admin
+            expanded.update(["DEPARTMENT_ADMIN", "OFFICER", "DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C"])
     return expanded
 
 def require_roles(allowed_roles: List[str]):

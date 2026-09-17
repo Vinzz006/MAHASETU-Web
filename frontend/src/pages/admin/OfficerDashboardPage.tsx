@@ -12,6 +12,7 @@ export const OfficerDashboardPage: React.FC = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [recentApps, setRecentApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const loadData = async () => {
@@ -22,8 +23,10 @@ export const OfficerDashboardPage: React.FC = () => {
       ]);
       setMetrics(m);
       setRecentApps(apps.slice(0, 8));
-    } catch (e) {
+      setError(null);
+    } catch (e: any) {
       console.error('Failed to load dashboard metrics', e);
+      setError(e.message || 'Failed to load telemetry data');
     } finally {
       setLoading(false);
     }
@@ -34,6 +37,8 @@ export const OfficerDashboardPage: React.FC = () => {
     const interval = setInterval(loadData, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleRetryException = async (appId: string) => {
     setRetryingId(appId);
@@ -47,10 +52,43 @@ export const OfficerDashboardPage: React.FC = () => {
     }
   };
 
+  const handleGrantApplication = async (appId: string) => {
+    setActionLoading(appId);
+    try {
+      await api.advanceWorkflow(appId);
+      await loadData();
+    } catch (e: any) {
+      alert(e.message || 'Failed to advance application workflow');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  if (error && !metrics) {
+    return (
+      <div className="max-w-xl mx-auto my-20 p-6 bg-rose-50 border border-rose-200 rounded-xl text-center space-y-3">
+        <AlertTriangle className="w-8 h-8 text-rose-600 mx-auto" />
+        <h3 className="text-sm font-bold text-rose-900">Command Center Telemetry Unavailable</h3>
+        <p className="text-xs text-rose-700">{error}</p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            setError(null);
+            loadData();
+          }}
+          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow transition-colors"
+        >
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
+
   if (loading || !metrics) {
     return (
       <div className="max-w-7xl mx-auto py-20 text-center text-sm text-slate-500">
-        Connecting to MahaSetu Interoperability Hub Command Center...
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-amber-500 border-t-transparent mb-3"></div>
+        <div>Connecting to MahaSetu Interoperability Hub Command Center...</div>
       </div>
     );
   }
@@ -339,13 +377,26 @@ export const OfficerDashboardPage: React.FC = () => {
                     {app.current_department}
                   </td>
                   <td className="p-3 text-right">
-                    <Link
-                      to={`/applications/${app.id}/track`}
-                      className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold text-xs"
-                    >
-                      <span>Inspect</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </Link>
+                    <div className="flex items-center justify-end gap-2">
+                      {app.status !== 'COMPLETED' && app.status !== 'EXCEPTION' && (
+                        <button
+                          onClick={() => handleGrantApplication(app.id)}
+                          disabled={actionLoading === app.id}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs transition-colors shadow-sm flex items-center gap-1"
+                          title={`Grant acceptance and advance workflow for ${app.current_department}`}
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>{actionLoading === app.id ? 'Granting...' : `✓ Grant ${app.current_department}`}</span>
+                        </button>
+                      )}
+                      <Link
+                        to={`/applications/${app.id}/track`}
+                        className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold text-xs"
+                      >
+                        <span>Inspect</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -6,12 +6,14 @@ import { GrievanceModal } from '../../components/GrievanceModal';
 import {
   CheckCircle2, Clock, AlertTriangle, ArrowRight, Play, RefreshCw,
   ShieldCheck, FileCode, Database, Activity, User, Building, FileText,
-  Award, MessageSquare
+  Award, MessageSquare, Check, XCircle
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export const TrackingPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { setIsInspectorOpen, inspectTransformation } = useDemo();
+  const { currentUser } = useAuth();
 
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +25,148 @@ export const TrackingPage: React.FC = () => {
   const [resubmitIncome, setResubmitIncome] = useState<number>(180000);
   const [resubmitComments, setResubmitComments] = useState('');
   const [resubmitting, setResubmitting] = useState(false);
+
+  // Identify the currently pending workflow step
+  const pendingStep = application?.workflow_steps?.find(
+    (s) => s.status === 'PENDING' || s.status === 'IN_PROGRESS' || s.status === 'RETRYING' || s.status === 'REWORK_REQUESTED'
+  );
+
+  const getGrantActionInfo = () => {
+    if (!pendingStep) return null;
+    const name = pendingStep.step_name;
+    const dept = pendingStep.department_id;
+
+    if (name === 'IDENTITY_VERIFICATION' || dept === 'DEPT_A') {
+      return {
+        role: 'DEPT_A',
+        deptCode: 'DEPT_A',
+        roleLabel: 'Department A Officer (Identity & Civil Registry)',
+        badgeColor: 'bg-blue-100 text-blue-900 border-blue-200',
+        title: 'Grant & Verify Identity (Dept A)',
+        actionLabel: 'Grant & Verify Identity',
+        description: 'Verify resident demographics and UIDAI match, then forward canonical payload to Department B.',
+        actionType: 'advance',
+        buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'
+      };
+    }
+    if (name === 'ELIGIBILITY_VERIFICATION' || dept === 'DEPT_B') {
+      return {
+        role: 'DEPT_B',
+        deptCode: 'DEPT_B',
+        roleLabel: 'Department B Officer (Social Welfare & Criteria)',
+        badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+        title: 'Grant & Verify Eligibility (Dept B)',
+        actionLabel: 'Grant & Verify Eligibility',
+        description: 'Validate socio-economic threshold and dispatch verified eligibility certificate to Department C.',
+        actionType: 'advance',
+        buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'
+      };
+    }
+    if (name === 'DEPARTMENT_APPROVAL' || dept === 'DEPT_C') {
+      return {
+        role: 'DEPT_C',
+        deptCode: 'DEPT_C',
+        roleLabel: 'Department C Officer (Employment & Sanctions)',
+        badgeColor: 'bg-purple-100 text-purple-900 border-purple-200',
+        title: 'Grant & Issue Scheme Sanction (Dept C)',
+        actionLabel: 'Grant & Issue Sanction',
+        description: 'Adjudicate entitlement benefit and issue official scheme sanction order to State Administrator.',
+        actionType: 'advance',
+        buttonClass: 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/20'
+      };
+    }
+    if (name === 'ADMIN_REVIEW' || dept === 'ADMIN') {
+      return {
+        role: 'ADMIN',
+        deptCode: 'ADMIN',
+        roleLabel: 'State Administrator (Executive Governance)',
+        badgeColor: 'bg-blue-100 text-blue-900 border-blue-200',
+        title: 'Grant Administrative Sanction Sign-Off',
+        actionLabel: 'Sign-off & Approve Application',
+        description: 'Executive review verifying cross-department approvals and authorizing statutory Service Passport generation.',
+        actionType: 'admin_review',
+        buttonClass: 'bg-blue-950 hover:bg-blue-900 text-white shadow-blue-950/20'
+      };
+    }
+    if (name === 'AUDITOR_REVIEW' || dept === 'AUDIT') {
+      return {
+        role: 'AUDITOR',
+        deptCode: 'AUDIT',
+        roleLabel: 'State Auditor (Independent Compliance)',
+        badgeColor: 'bg-indigo-100 text-indigo-900 border-indigo-200',
+        title: 'Grant Statutory Auditor Confirmation',
+        actionLabel: 'Confirm Audit Compliance',
+        description: 'Independent oversight confirmation validating data provenance and cryptographic hashes.',
+        actionType: 'advance',
+        buttonClass: 'bg-indigo-600 hover:bg-indigo-500 text-white'
+      };
+    }
+    if (name === 'CONSENT_GRANTED') {
+      return {
+        role: 'PORTAL',
+        deptCode: 'PORTAL',
+        roleLabel: 'Citizen DPDP Consent Framework',
+        badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+        title: 'Authorize Citizen Consent',
+        actionLabel: 'Authorize Consent',
+        description: 'Enforce DPDP Act consent artifact and begin inter-department verification pipeline.',
+        actionType: 'advance',
+        buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white'
+      };
+    }
+    return {
+      role: dept,
+      deptCode: dept,
+      roleLabel: `${dept} Authority`,
+      badgeColor: 'bg-slate-100 text-slate-800 border-slate-200',
+      title: `Grant Acceptance (${dept})`,
+      actionLabel: `Grant & Accept (${dept})`,
+      description: 'Advance application workflow to the next inter-department milestone.',
+      actionType: 'advance',
+      buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white'
+    };
+  };
+
+  const handleGrantAccept = async (comments?: string) => {
+    if (!application) return;
+    setAdvancing(true);
+    try {
+      if (pendingStep?.step_name === 'ADMIN_REVIEW') {
+        await api.adminReviewWorkflow(application.id, {
+          decision: 'APPROVE',
+          comments: comments || 'Administrative sanction cleared and verified by State Administrator.'
+        });
+      } else {
+        await api.advanceWorkflow(application.id);
+      }
+      await loadData();
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || 'Failed to grant approval');
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
+  const handleAdminReworkFromTracking = async () => {
+    if (!application) return;
+    const reason = prompt('Please enter rework instructions for the citizen:', 'Income certificate verification required under scheme ceiling.');
+    if (!reason) return;
+    setAdvancing(true);
+    try {
+      await api.adminReviewWorkflow(application.id, {
+        decision: 'REWORK',
+        comments: reason,
+        rejection_reason: reason
+      });
+      await loadData();
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || 'Failed to request rework');
+    } finally {
+      setAdvancing(false);
+    }
+  };
 
   const loadData = async () => {
     if (!id) return;
@@ -146,13 +290,19 @@ export const TrackingPage: React.FC = () => {
             {!isCompleted && !isException && !isRework && (
               <>
                 <button
-                  onClick={handleAdvance}
+                  onClick={() => handleGrantAccept()}
                   disabled={advancing}
-                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow"
-                  title="Advance next step in workflow"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow"
+                  title="Grant official acceptance for active stage"
                 >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>{advancing ? 'Executing...' : 'Advance Next Step'}</span>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>
+                    {advancing
+                      ? 'Granting...'
+                      : pendingStep
+                      ? `Grant & Accept (${pendingStep.department_id})`
+                      : 'Advance Step'}
+                  </span>
                 </button>
 
                 <button
@@ -243,6 +393,75 @@ export const TrackingPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Officer & Administrative Authority Grant Decision Panel */}
+      {!isCompleted && !isException && !isRework && pendingStep && (() => {
+        const actionInfo = getGrantActionInfo();
+        if (!actionInfo) return null;
+
+        return (
+          <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-[#0f2942] text-white rounded-xl p-5 mb-6 border border-amber-400/30 shadow-md">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[10px] uppercase font-bold tracking-widest bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded border border-amber-500/30">
+                    Awaiting Authority Grant / Acceptance
+                  </span>
+                  <span className="text-xs text-slate-400">•</span>
+                  <span className="text-xs text-slate-300 font-mono">
+                    Node: <strong className="text-amber-300">{pendingStep.department_id}</strong> ({pendingStep.step_name.replace(/_/g, ' ')})
+                  </span>
+                </div>
+
+                <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                  <span>{actionInfo.title}</span>
+                </h3>
+
+                <p className="text-xs text-slate-300 max-w-2xl">
+                  {actionInfo.description}
+                </p>
+
+                <div className="pt-1 flex items-center gap-3 text-[11px] text-slate-400">
+                  <span>
+                    Designated Authority: <strong className="text-white">{actionInfo.roleLabel}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Logged in as: <strong className="text-amber-300 font-mono">{currentUser?.role || 'OFFICER'}</strong>
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => handleGrantAccept()}
+                  disabled={advancing}
+                  className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all shadow-lg flex items-center gap-2 ${actionInfo.buttonClass}`}
+                  title="Authorize and advance workflow step"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-white" />
+                  <span>{advancing ? 'Executing Authority Grant...' : actionInfo.actionLabel}</span>
+                </button>
+
+                {pendingStep.step_name === 'ADMIN_REVIEW' && (
+                  <button
+                    onClick={handleAdminReworkFromTracking}
+                    disabled={advancing}
+                    className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Request Citizen Rework</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Exception Banner if in Exception state */}
       {isException && (
@@ -449,6 +668,58 @@ export const TrackingPage: React.FC = () => {
                     {step.rejection_reason && (
                       <div className="mt-2 text-[11px] text-amber-900 bg-amber-100 p-2 rounded border border-amber-300">
                         <strong>Rework Feedback:</strong> {step.rejection_reason}
+                      </div>
+                    )}
+
+                    {/* Inline Decision Block if this step is awaiting authorization */}
+                    {step.id === pendingStep?.id && !isCompleted && !isException && !isRework && (
+                      <div className="mt-3 p-3.5 bg-gradient-to-r from-emerald-50 via-white to-amber-50/40 rounded-lg border border-emerald-300 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                            <span>Awaiting Authority Action ({step.department_id}):</span>
+                          </div>
+                          <div className="text-[11px] text-slate-600 mt-0.5">
+                            Grant acceptance to verify this step and record cryptographic audit log in the state ledger.
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleGrantAccept()}
+                            disabled={advancing}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold shadow transition-all flex items-center gap-1.5 ${
+                              step.step_name === 'ADMIN_REVIEW'
+                                ? 'bg-blue-950 hover:bg-blue-900 text-white'
+                                : step.department_id === 'DEPT_C'
+                                ? 'bg-purple-700 hover:bg-purple-600 text-white'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>
+                              {advancing
+                                ? 'Granting...'
+                                : step.step_name === 'IDENTITY_VERIFICATION'
+                                ? 'Grant & Verify Identity (Dept A)'
+                                : step.step_name === 'ELIGIBILITY_VERIFICATION'
+                                ? 'Grant & Verify Eligibility (Dept B)'
+                                : step.step_name === 'DEPARTMENT_APPROVAL'
+                                ? 'Grant & Issue Sanction (Dept C)'
+                                : step.step_name === 'ADMIN_REVIEW'
+                                ? 'Grant Administrative Approval'
+                                : `Grant & Accept (${step.department_id})`}
+                            </span>
+                          </button>
+                          {step.step_name === 'ADMIN_REVIEW' && (
+                            <button
+                              onClick={handleAdminReworkFromTracking}
+                              disabled={advancing}
+                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow"
+                            >
+                              Request Rework
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
 

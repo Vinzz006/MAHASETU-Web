@@ -15,10 +15,13 @@ export const DepartmentDashboardPage: React.FC<Props> = ({ departmentCode }) => 
   const { currentUser } = useAuth();
   const activeDeptRole = departmentCode || (currentUser?.role as any) || 'DEPARTMENT_A';
 
-  // Map to short department ID
-  const shortDeptId =
-    activeDeptRole === 'DEPARTMENT_A' ? 'DEPT_A' :
-    activeDeptRole === 'DEPARTMENT_B' ? 'DEPT_B' : 'DEPT_C';
+  // Allow switching departments for testing and multi-role officers / admins
+  const defaultDept =
+    activeDeptRole === 'DEPARTMENT_B' ? 'DEPT_B' :
+    activeDeptRole === 'DEPARTMENT_C' ? 'DEPT_C' : 'DEPT_A';
+  const [selectedDept, setSelectedDept] = useState<'DEPT_A' | 'DEPT_B' | 'DEPT_C'>(defaultDept);
+
+  const shortDeptId = selectedDept;
 
   const deptMeta = {
     DEPT_A: {
@@ -122,6 +125,43 @@ export const DepartmentDashboardPage: React.FC<Props> = ({ departmentCode }) => 
         </div>
       </div>
 
+      {/* Department Selector Tabs */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-2">
+          Select Active Node:
+        </span>
+        <button
+          onClick={() => setSelectedDept('DEPT_A')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+            selectedDept === 'DEPT_A'
+              ? 'bg-blue-950 text-white border-blue-950 shadow-sm'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          Dept A — Identity Registry
+        </button>
+        <button
+          onClick={() => setSelectedDept('DEPT_B')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+            selectedDept === 'DEPT_B'
+              ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          Dept B — Social Welfare
+        </button>
+        <button
+          onClick={() => setSelectedDept('DEPT_C')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+            selectedDept === 'DEPT_C'
+              ? 'bg-purple-700 text-white border-purple-700 shadow-sm'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          Dept C — Employment & Sanctions
+        </button>
+      </div>
+
       {/* Field-Level Authorization Alert */}
       <div className="bg-blue-50/75 border border-blue-200 rounded-xl p-4 mb-8 text-xs text-blue-900 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -192,14 +232,36 @@ export const DepartmentDashboardPage: React.FC<Props> = ({ departmentCode }) => 
                       {shortDeptId === 'DEPT_C' && `Scheme: ${app.service_name} • Benefit Sanction Ready`}
                     </td>
                     <td className="p-3 text-right pr-5">
-                      <button
-                        onClick={() => handleProcessStep(app.id)}
-                        disabled={actionLoading === app.id}
-                        className="px-3 py-1 bg-blue-950 hover:bg-blue-900 text-white font-bold rounded text-xs transition-colors shadow-sm flex items-center gap-1.5 ml-auto"
-                      >
-                        <Play className="w-3 h-3 fill-current text-amber-400" />
-                        <span>{actionLoading === app.id ? 'Processing...' : 'Execute Node Check'}</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleProcessStep(app.id)}
+                          disabled={actionLoading === app.id}
+                          className={`px-3.5 py-1.5 font-bold rounded-lg text-xs transition-all shadow flex items-center gap-1.5 ${
+                            shortDeptId === 'DEPT_A'
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                              : shortDeptId === 'DEPT_B'
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                              : 'bg-purple-700 hover:bg-purple-600 text-white'
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>
+                            {actionLoading === app.id
+                              ? 'Authorizing...'
+                              : shortDeptId === 'DEPT_A'
+                              ? '✓ Grant & Verify Identity'
+                              : shortDeptId === 'DEPT_B'
+                              ? '✓ Grant & Verify Eligibility'
+                              : '✓ Grant Scheme Sanction'}
+                          </span>
+                        </button>
+                        <Link
+                          to={`/applications/${app.id}/track`}
+                          className="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded text-xs border border-slate-200 transition-colors"
+                        >
+                          Track
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

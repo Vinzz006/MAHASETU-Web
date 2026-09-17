@@ -89,9 +89,11 @@ class WorkflowEngine:
 
     @classmethod
     def get_application_workflow(cls, db: Session, application_id: str) -> List[WorkflowStep]:
-        return db.query(WorkflowStep).filter(
+        steps = db.query(WorkflowStep).filter(
             WorkflowStep.application_id == application_id
         ).all()
+        order_map = {p["step_name"]: idx for idx, p in enumerate(WORKFLOW_PIPELINE)}
+        return sorted(steps, key=lambda s: order_map.get(s.step_name, 999))
 
     @classmethod
     def advance_step(cls, db: Session, application_id: str, actor_id: str = "SYSTEM") -> Dict[str, Any]:
