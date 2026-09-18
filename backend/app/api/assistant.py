@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
@@ -17,6 +17,7 @@ from backend.app.auth import get_current_user, get_current_user_optional
 from backend.app.services.assistant import (
     build_system_context, generate_assistant_response, get_gemini_metadata
 )
+from backend.app.services.rate_limiter import assistant_rate_limiter
 
 router = APIRouter(prefix="/api/assistant", tags=["AI Assistant"])
 
@@ -60,12 +61,26 @@ DEFAULT_SERVICES = [
 @router.post("/chat", response_model=ChatResponse)
 def chat_with_assistant(
     request: ChatRequest,
+    req_http: Request,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Interacts with MahaSetu Mitra AI assistant with grounded citizen context."""
+    """Interacts with MahaSetu Mitra AI assistant with grounded citizen context and per-user rate limiting."""
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    # Per-user rate limiting (keyed by current_user.id or client IP)
+    client_ip = req_http.client.host if req_http.client else "127.0.0.1"
+    forwarded = req_http.headers.get("x-forwarded-for")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+    rate_key = f"AssistantUser:{current_user.id}" if current_user else f"AssistantGuest:{client_ip}"
+    if not assistant_rate_limiter.check(rate_key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded: Maximum 15 assistant chat requests allowed per minute.",
+            headers={"Retry-After": "60"}
+        )
 
     # Handle unauthenticated visitor / guest query on landing page
     if not current_user:
@@ -91,7 +106,7 @@ def chat_with_assistant(
             )
         )
 
-    # 1. Retrieve or create conversation
+    # 1. Retrieve or create conversation with strict isolation
     conv = None
     if request.conversation_id:
         conv = (
@@ -102,8 +117,12 @@ def chat_with_assistant(
             )
             .first()
         )
-
-    if not conv:
+        if not conv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found or access denied."
+            )
+    else:
         # Title is the first 40 chars of user query
         title = request.message[:40] + ("..." if len(request.message) > 40 else "")
         conv = AssistantConversation(

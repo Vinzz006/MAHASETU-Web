@@ -177,7 +177,7 @@ const PERSONAS = [
 // Main LandingPage
 // ---------------------------------------------------------------------------
 export const LandingPage: React.FC = () => {
-  const { switchPersona } = useAuth();
+  const { currentUser, switchPersona, personas } = useAuth();
   const { setIsInspectorOpen } = useDemo();
   const [stats, setStats] = useState<any>(null);
 
@@ -271,16 +271,28 @@ export const LandingPage: React.FC = () => {
             <p className="text-sm font-bold text-white mt-0.5">Switch persona to explore the full platform →</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {PERSONAS.map(({ role, label, sub, to, color, icon: Icon }) => (
-              <Link key={role} to={to} onClick={() => switchPersona(role)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${color} shadow-sm`}>
-                <Icon className="w-3.5 h-3.5" />
-                <div className="text-left">
-                  <div>{label} View</div>
-                  <div className="opacity-70 font-normal text-[10px]">{sub}</div>
-                </div>
-              </Link>
-            ))}
+            {PERSONAS.map(({ role, label, sub, to, color, icon: Icon }) => {
+              const hasAdminPersonas = currentUser && personas.length > 0;
+              const destination = hasAdminPersonas ? to : `/login?role=${role.toLowerCase()}`;
+              return (
+                <Link
+                  key={role}
+                  to={destination}
+                  onClick={() => {
+                    if (hasAdminPersonas) {
+                      switchPersona(role);
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${color} shadow-sm`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <div className="text-left">
+                    <div>{label} View</div>
+                    <div className="opacity-70 font-normal text-[10px]">{sub}</div>
+                  </div>
+                </Link>
+              );
+            })}
             <Link to="/admin/innovation-lab"
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition-colors shadow-sm">
               <Beaker className="w-3.5 h-3.5" />

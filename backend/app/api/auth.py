@@ -88,6 +88,13 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     ).first()
 
     if not user or not verify_password(req.password, user.hashed_password):
+        create_audit_log(
+            db=db,
+            actor_id=user.id if user else "UNKNOWN",
+            action="USER_LOGIN_FAILED",
+            resource="AUTH",
+            metadata={"username": req.username}
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username, mobile or password"
@@ -208,7 +215,7 @@ def reject_registration(
 @router.get("/personas")
 def get_demo_personas(
     db: Session = Depends(get_db),
-    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+    admin_user: User = Depends(require_roles(["SYSTEM_ADMIN"]))
 ):
     """Returns quick-switch credentials and tokens strictly for local demo evaluation when authenticated as SYSTEM_ADMIN."""
     from backend.app.firebase import is_demo_mode
@@ -231,4 +238,13 @@ def get_demo_personas(
             "registration_status": u.registration_status,
             "token": token
         })
+
+    create_audit_log(
+        db=db,
+        actor_id=admin_user.id,
+        action="DEMO_PERSONAS_ACCESSED",
+        resource="AUTH_PERSONAS",
+        metadata={"user_count": len(personas), "caller_role": admin_user.role}
+    )
+
     return personas

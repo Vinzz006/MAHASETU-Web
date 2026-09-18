@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models.application import Application
 from backend.app.models.user import User
+from backend.app.auth import get_current_user_optional
 
 router = APIRouter(prefix="/api/vc", tags=["W3C Verifiable Credentials & Zero-Knowledge Proofs"])
 
@@ -33,22 +34,42 @@ class ZKPVerifyRequest(BaseModel):
     timestamp: str
 
 @router.get("/wallet")
-def get_citizen_verifiable_credentials(citizen_mobile: str = "9999999999", db: Session = Depends(get_db)):
+def get_citizen_verifiable_credentials(
+    citizen_mobile: str = "9999999999", 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     Returns the citizen's sovereign digital wallet with W3C-compliant Verifiable Credentials (VCs).
     """
+    if current_user and getattr(current_user, "mobile", None):
+        citizen_mobile = current_user.mobile
+
     user = db.query(User).filter(User.mobile == citizen_mobile).first()
+    if not user and current_user:
+        user = current_user
+
     apps = db.query(Application).filter(Application.citizen_id == user.id).all() if user else []
 
     primary_app = apps[0] if apps else None
-    citizen_data = primary_app.citizen_data if primary_app and primary_app.citizen_data else {
-        "name": "Demo Citizen",
+    citizen_data = primary_app.citizen_data if primary_app and primary_app.citizen_data else {}
+    if isinstance(citizen_data, str):
+        try:
+            citizen_data = json.loads(citizen_data)
+        except Exception:
+            citizen_data = {}
+
+    default_data = {
+        "name": (user.name if user and getattr(user, "name", None) else "Demo Citizen"),
         "dob": "1998-05-12",
         "district": "Pune",
         "annual_income": 180000,
         "aadhaar_last4": "5892",
         "land_holding_acres": 2.5
     }
+    for k, v in default_data.items():
+        if k not in citizen_data or citizen_data[k] is None:
+            citizen_data[k] = v
 
     citizen_did = f"did:mahasetu:citizen:{hashlib.sha256((citizen_mobile + 'MAHA').encode()).hexdigest()[:16]}"
 
@@ -132,7 +153,11 @@ def get_citizen_verifiable_credentials(citizen_mobile: str = "9999999999", db: S
     }
 
 @router.post("/generate-zkp")
-def generate_zkp_proof(req: ZKPProofRequest, db: Session = Depends(get_db)):
+def generate_zkp_proof(
+    req: ZKPProofRequest, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     Generates a cryptographic Zero-Knowledge Proof token confirming eligibility
     predicates without revealing underlying raw personal data.
@@ -140,8 +165,12 @@ def generate_zkp_proof(req: ZKPProofRequest, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     timestamp_str = now.isoformat()
 
+    claims = req.claims_to_prove if (req.claims_to_prove and len(req.claims_to_prove) > 0) else [
+        "age_ge_18", "income_lt_threshold", "maharashtra_domicile"
+    ]
+
     proof_assertions = {}
-    for claim in req.claims_to_prove:
+    for claim in claims:
         if claim == "age_ge_18":
             proof_assertions[claim] = {
                 "predicate": "citizen.age >= 18",
@@ -173,10 +202,12 @@ def generate_zkp_proof(req: ZKPProofRequest, db: Session = Depends(get_db)):
                 "zero_knowledge_commitment": hashlib.sha256(f"{SECRET_SALT}:{claim}:TRUE".encode()).hexdigest()
             }
 
+    verifier_aud = req.verifier_audience or "DEPT_B_ELIGIBILITY_EVALUATION"
+
     proof_payload = {
         "issuer_did": MAHASETU_ISSUER_DID,
-        "verifier_audience": req.verifier_audience,
-        "claims_proved": req.claims_to_prove,
+        "verifier_audience": verifier_aud,
+        "claims_proved": claims,
         "assertions": proof_assertions,
         "created_at": timestamp_str,
         "nonce": hashlib.sha256(f"{time.time()}".encode()).hexdigest()[:12]

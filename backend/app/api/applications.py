@@ -235,13 +235,13 @@ def validate_eligibility(
 
 
 def generate_application_number(db: Session) -> str:
-    """Generates unique Universal Application ID (e.g. MH-APP-2026-A1B2C3) collision-safely."""
+    """Generates high-entropy, non-sequential Universal Application ID collision-safely."""
     for _ in range(20):
-        suffix = uuid.uuid4().hex[:6].upper()
+        suffix = uuid.uuid4().hex[:8].upper()
         candidate = f"MH-APP-2026-{suffix}"
         if not db.query(Application).filter(Application.application_number == candidate).first():
             return candidate
-    return f"MH-APP-2026-{uuid.uuid4().hex[:8].upper()}"
+    return f"MH-APP-2026-{uuid.uuid4().hex[:10].upper()}"
 
 def _build_application_detail(app: Application, db: Session) -> ApplicationDetailResponse:
     # Fetch active consent
@@ -582,6 +582,14 @@ def resubmit_application(
 
     # Check ownership if CITIZEN
     if current_user.role == "CITIZEN" and app.citizen_id != current_user.id:
+        create_audit_log(
+            db=db,
+            actor_id=current_user.id,
+            action="APPLICATION_RESUBMIT_DENIED_OWNERSHIP",
+            resource="APPLICATION",
+            application_id=app.id,
+            metadata={"application_number": app.application_number}
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only resubmit your own applications"
@@ -590,6 +598,14 @@ def resubmit_application(
     # If department/officer, must be authorized for this application
     if current_user.role in ("DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C", "OFFICER"):
         if not _is_department_authorized_for_app(app, current_user, db):
+            create_audit_log(
+                db=db,
+                actor_id=current_user.id,
+                action="APPLICATION_RESUBMIT_DENIED_UNAUTHORIZED",
+                resource="APPLICATION",
+                application_id=app.id,
+                metadata={"application_number": app.application_number, "role": current_user.role}
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Department is not authorized to resubmit this application"

@@ -81,17 +81,18 @@ from backend.app.api.master_showcase import router as master_showcase_router
 from backend.app.events.handlers import register_default_handlers
 from database.seed.seed_data import init_db_and_seed
 
-from backend.app.firebase import init_firebase
+from backend.app.firebase import init_firebase, is_demo_mode
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from backend.app.firebase import is_demo_mode
     demo = is_demo_mode()
     env = os.getenv("ENVIRONMENT", "development").lower()
-    if demo and env in ("production", "prod"):
+    host = os.getenv("HOST", "").strip()
+    if demo and (env in ("production", "prod") or (host in ("0.0.0.0", "::") and not os.getenv("ALLOW_DEMO_EXPOSURE"))):
         raise RuntimeError(
-            "FATAL: DEMO_MODE=true is strictly prohibited in a production environment! "
-            "Set DEMO_MODE=false and configure production Firebase, JWT, and database credentials."
+            "FATAL: DEMO_MODE=true is strictly prohibited in production or bound to 0.0.0.0! "
+            "Set DEMO_MODE=false and configure production Firebase, JWT, and database credentials, "
+            "or bind exclusively to loopback (127.0.0.1)."
         )
     if demo:
         print("[MahaSetu Hub WARNING]: Running in DEMO_MODE. Never expose this mode on a public interface.")
@@ -160,12 +161,12 @@ app.include_router(profile_router)
 app.include_router(notifications_router)
 app.include_router(assistant_router)
 app.include_router(audit_logs_router)
+app.include_router(vc_router)
 
 # =====================================================================
 # --- ADDITIONAL / EXPERIMENTAL MODULES (INNOVATION LAB) ---
 # Exploratory extensions beyond core interoperability scope.
-# Kept disabled by default to minimize production attack surface.
-# =====================================================================
+# Disabled by default to minimize attack surface; must be explicitly turned on via ENABLE_INNOVATION_LAB=true
 ENABLE_INNOVATION_LAB = os.getenv("ENABLE_INNOVATION_LAB", "false").lower() in ("true", "1", "yes")
 
 if ENABLE_INNOVATION_LAB:
@@ -222,7 +223,6 @@ if ENABLE_INNOVATION_LAB:
 
     # Citizen Exploratory Extensions
     app.include_router(vaani_router, dependencies=citizen_guard)
-    app.include_router(vc_router, dependencies=citizen_guard)
     app.include_router(nivarana_router, dependencies=citizen_guard)
     app.include_router(interstate_router, dependencies=citizen_guard)
     app.include_router(entitlements_router, dependencies=citizen_guard)
@@ -267,9 +267,23 @@ def platform_stats():
         total_consents= db.query(Consent).count()
         total_steps   = db.query(WorkflowStep).count()
 
-        # Turnaround benchmark model vs 21-day manual processing baseline
-        avg_days_saved = 17.8
-        turnaround_pct = 84.7
+        # Calculate real completed turnaround if completed applications exist
+        completed_apps = db.query(Application).filter(Application.status == "COMPLETED").all()
+        real_turnaround_days = []
+        for a in completed_apps:
+            if a.created_at and a.updated_at:
+                diff = (a.updated_at - a.created_at).total_seconds() / 86400.0
+                real_turnaround_days.append(diff)
+        
+        has_completed = len(real_turnaround_days) > 0
+        actual_avg_days = round(sum(real_turnaround_days) / len(real_turnaround_days), 1) if has_completed else None
+        baseline_days = 21.0
+        actual_days_saved = round(baseline_days - actual_avg_days, 1) if actual_avg_days is not None else None
+
+        modeled_turnaround_days = 3.2
+        modeled_turnaround_pct = 84.7
+        current_avg = actual_avg_days if actual_avg_days is not None else modeled_turnaround_days
+        turnaround_pct = round(((baseline_days - current_avg) / baseline_days) * 100, 1)
 
         return {
             "total_applications":   total_apps,
@@ -280,15 +294,18 @@ def platform_stats():
             "active_departments":   4,
             "phases_implemented":   16,
             "total_modules":        35,
-            "is_live_data":         True,
+            "current_avg_days":     current_avg,
             "turnaround_improvement_pct": turnaround_pct,
-            "avg_days_saved":       avg_days_saved,
-            "baseline_days":        21,
-            "current_avg_days":     3.2,
+            "is_live_data":         True,
+            "actual_turnaround_avg_days": actual_avg_days,
+            "actual_days_saved":    actual_days_saved,
+            "baseline_days":        baseline_days,
             "illustrative_benchmarks": {
                 "benefits_disbursed_cr_estimate": 2845,
-                "projected_time_saving_pct": turnaround_pct,
-                "benchmark_note": "Modeled illustrative benchmark for departmental evaluation."
+                "modeled_turnaround_days": modeled_turnaround_days,
+                "modeled_avg_days_saved": 17.8,
+                "projected_time_saving_pct": modeled_turnaround_pct,
+                "benchmark_note": "Modeled illustrative benchmark for departmental evaluation; actual figures reflect live database telemetry."
             },
             "districts_covered":    36,
             "platform_version":     "v1.0.0 Production Core",

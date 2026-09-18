@@ -36,14 +36,16 @@ MAHASETU strictly rejects default or missing JWT signing keys on backend startup
 | Dimension | `DEMO_MODE=true` (Local Hackathon/Dev) | `DEMO_MODE=false` (Production / Staging) |
 |---|---|---|
 | **Intended Target** | Local development and isolated UI prototyping only. | Any publicly accessible server, staging, or production. |
-| **Safety Guardrail** | **Forbidden** if `ENVIRONMENT=production` (FastAPI lifespan crashes on startup). | Enforced standard. |
-| **Personas Endpoint** | `GET /api/auth/personas` returns seeded roles/credentials. | Returns `404 Not Found`. Role enumeration completely disabled. |
-| **Auth Context UI** | Demo persona switcher toggle can be enabled for local testing. | Demo persona switcher and automatic demo login disabled. |
-| **Firebase Auth** | Mock tokens permitted only if `TESTING=true` (`is_testing_mode()`). | Real Firebase Admin SDK cryptographic verification strictly required. |
-| **Audit Integrity** | Append-only database listener active. | Append-only database listener active + Merkle tree cryptographic chain. |
+| **Safety Guardrail** | **Forbidden** if `ENVIRONMENT=production` or `HOST=0.0.0.0` (FastAPI lifespan crashes on startup). | Enforced standard. |
+| **Authentication & Tokens** | Disables real Firebase Admin SDK token verification; accepts mock strings only during pytest (`TESTING=true`). | Real Firebase Admin SDK cryptographic verification strictly required. |
+| **Personas Endpoint** | `GET /api/auth/personas` strictly requires `SYSTEM_ADMIN` role. | Returns `404 Not Found`. Endpoint completely disabled. |
+| **Auth Context UI** | Quick demo persona switcher available only for authenticated `SYSTEM_ADMIN`. | Persona switcher completely hidden; real login required. |
+| **Storage Fallback** | Stores uploaded passport documents in local `storage_private/` directory. | Direct streaming to private Firebase Storage bucket with short-lived signed URLs. |
+| **AI Assistant** | Falls back to rule-grounded response if `GEMINI_API_KEY` is omitted. | Fails fast if `GEMINI_API_KEY` is missing; connects to `gemini-2.5-flash` via TLS. |
+| **Audit Integrity** | Append-only database listener active. | Append-only database listener active + DB-level `REVOKE UPDATE, DELETE`. |
 
 > [!CAUTION]
-> Running with `DEMO_MODE=true` in a publicly accessible or staging environment exposes seeded persona credentials and is strictly prohibited.
+> Running with `DEMO_MODE=true` in a publicly accessible or staging environment bypasses real external credential checks and is strictly prohibited.
 
 ---
 
@@ -52,9 +54,16 @@ MAHASETU strictly rejects default or missing JWT signing keys on backend startup
 Before deploying MAHASETU to production, verify every item:
 
 - [ ] **Environment**: `ENVIRONMENT=production` and `DEMO_MODE=false`.
-- [ ] **JWT Key**: `JWT_SECRET` generated with 32+ bytes cryptographic entropy.
+- [ ] **Host Binding**: Bind to reverse-proxy loopback or internal interface. Never run `DEMO_MODE=true` on `0.0.0.0`.
+- [ ] **JWT Key**: `JWT_SECRET` generated with 32+ bytes cryptographic entropy. Application fails to start if missing.
+- [ ] **Google Gemini API Key**: `GEMINI_API_KEY` configured from Google AI Studio (`https://aistudio.google.com/apikey`) or Vertex AI service account. Model set to `gemini-2.5-flash`.
 - [ ] **Database**: Production PostgreSQL database configured via `DATABASE_URL` (SQLite file `mahasetu.db` is strictly for testing).
-- [ ] **Firebase Credentials**: `FIREBASE_CREDENTIALS_PATH` points to a secure, permission-restricted Google Service Account JSON file.
+- [ ] **Postgres DB Privilege Revocation**:
+  ```sql
+  -- Ensure application role cannot bypass append-only audit enforcement:
+  REVOKE UPDATE, DELETE ON audit_logs FROM mahasetu_app_role;
+  ```
+- [ ] **Firebase Credentials**: `FIREBASE_SERVICE_ACCOUNT_PATH` points to a secure, permission-restricted Google Service Account JSON file.
 - [ ] **CORS Configuration**: `CORS_ALLOWED_ORIGINS` explicitly set to production domains (e.g. `https://mahasetu.maharashtra.gov.in`), never wildcard `*`.
 - [ ] **Security Headers**: Verify HTTP response headers include:
   - `Content-Security-Policy`: Restricts scripts, frames, and connect origins.
@@ -63,7 +72,11 @@ Before deploying MAHASETU to production, verify every item:
   - `X-XSS-Protection: 1; mode=block`
   - `Referrer-Policy: strict-origin-when-cross-origin`
 - [ ] **Innovation Lab Gating**: `ENABLE_INNOVATION_LAB=false` to eliminate attack surface from experimental micro-routers.
-- [ ] **Rate Limiting**: Sliding-window rate limiters active on `/api/auth/register`, `/api/auth/login`, and `/api/passport/verify/{id_or_hash}`.
+- [ ] **Rate Limiting**: Sliding-window rate limiters active on:
+  - `/api/auth/register` (10 req/min/IP)
+  - `/api/auth/login` (10 req/min/IP)
+  - `/api/passport/verify/{id_or_hash}` (30 req/min/IP)
+  - `/api/assistant/chat` (15 req/min/user)
 - [ ] **Storage Security**: Resident document storage directory (`storage_private/`) must have restrictive file permissions (e.g., `chmod 700`) and private mount points outside the web root.
 
 ---

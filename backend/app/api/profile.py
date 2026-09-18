@@ -451,6 +451,13 @@ def download_my_passport_document(
         try:
             requested_file.relative_to(base_user_dir)
         except ValueError:
+            create_audit_log(
+                db=db,
+                actor_id=current_user.id,
+                action="PASSPORT_DOCUMENT_ACCESS_DENIED_PATH_TRAVERSAL",
+                resource="RESIDENT_PROFILE",
+                metadata={"user_id": current_user.id, "requested_path": path}
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Security violation: Path traversal detected. Access denied."
@@ -465,6 +472,13 @@ def download_my_passport_document(
     try:
         target_file.relative_to(base_user_dir)
     except ValueError:
+        create_audit_log(
+            db=db,
+            actor_id=current_user.id,
+            action="PASSPORT_DOCUMENT_ACCESS_DENIED_PATH_TRAVERSAL",
+            resource="RESIDENT_PROFILE",
+            metadata={"user_id": current_user.id, "stored_ref": server_ref}
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Security violation: Document reference is outside resident storage boundary."

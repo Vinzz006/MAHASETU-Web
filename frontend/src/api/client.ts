@@ -210,9 +210,8 @@ export const api = {
     name: string;
     mobile: string;
     email: string;
-    password?: string;
+    password: string;
     firebase_token?: string;
-    role?: string;
   }) {
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
@@ -867,8 +866,19 @@ export const api = {
   },
 
   // Phase 7: Sovereign Credentials & ZKP
-  async getVerifiableCredentials(citizenMobile: string = '9999999999') {
-    const res = await fetch(`${API_BASE}/vc/wallet?citizen_mobile=${citizenMobile}`, { headers: getAuthHeader() });
+  async getVerifiableCredentials(citizenMobile?: string) {
+    let mobile = citizenMobile;
+    if (!mobile) {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          if (parsed.mobile) mobile = parsed.mobile;
+        }
+      } catch (e) {}
+    }
+    if (!mobile) mobile = '9999999999';
+    const res = await fetch(`${API_BASE}/vc/wallet?citizen_mobile=${encodeURIComponent(mobile)}`, { headers: getAuthHeader() });
     if (!res.ok) throw new Error('Failed to fetch verifiable credentials wallet');
     return res.json();
   },

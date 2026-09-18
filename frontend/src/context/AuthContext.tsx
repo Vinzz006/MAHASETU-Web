@@ -12,7 +12,7 @@ interface AuthContextType {
   isPendingApproval: boolean;
   login: (username: string, password: string) => Promise<void>;
   loginWithFirebase: (email: string, password: string) => Promise<void>;
-  register: (payload: { name: string; mobile: string; email: string; password?: string }) => Promise<any>;
+  register: (payload: { name: string; mobile: string; email: string; password: string }) => Promise<any>;
   logout: () => void;
   switchPersona: (role: AppRole) => void;
   refreshProfile: () => Promise<void>;
@@ -158,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (payload: { name: string; mobile: string; email: string; password?: string }) => {
+  const register = async (payload: { name: string; mobile: string; email: string; password: string }) => {
     let firebaseToken: string | undefined = undefined;
     try {
       if (payload.password) {
@@ -174,13 +174,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mobile: payload.mobile,
       email: payload.email,
       password: payload.password,
-      firebase_token: firebaseToken,
-      role: 'CITIZEN'
+      firebase_token: firebaseToken
     });
 
     // Automatically login as the registered user so they see the pending screen
     try {
-      await login(payload.mobile, payload.password || 'mahasetu123');
+      await login(payload.mobile, payload.password);
     } catch (e) {
       // Set local representation in case login endpoint restricts
       setCurrentUser({

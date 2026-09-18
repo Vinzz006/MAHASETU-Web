@@ -195,19 +195,18 @@ def test_assistant_model_status_endpoint(asst_env):
 def test_assistant_gemini_mocked_invocation(monkeypatch):
     """Verifies that generate_assistant_response invokes Google Gemini with proper configuration when GEMINI_API_KEY is present."""
     from unittest.mock import MagicMock
-    import google.generativeai as genai
+    from google import genai
 
     os.environ["DEMO_MODE"] = "true"
     os.environ["GEMINI_API_KEY"] = "AIzaSyFakeKeyForTest12345"
-    os.environ["GEMINI_MODEL"] = "gemini-1.5-flash"
+    os.environ["GEMINI_MODEL"] = "gemini-2.5-flash"
 
-    mock_model = MagicMock()
+    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.text = "Hello! I am MahaSetu Mitra powered by Google Gemini. Your application MH-ASST-2026-001 is being processed."
-    mock_model.generate_content.return_value = mock_response
+    mock_client.models.generate_content.return_value = mock_response
 
-    monkeypatch.setattr(genai, "configure", lambda *args, **kwargs: None)
-    monkeypatch.setattr(genai, "GenerativeModel", lambda *args, **kwargs: mock_model)
+    monkeypatch.setattr(genai, "Client", lambda *args, **kwargs: mock_client)
 
     reply = generate_assistant_response(
         user_message="Tell me about my application",
@@ -219,23 +218,22 @@ def test_assistant_gemini_mocked_invocation(monkeypatch):
 
     assert "Google Gemini" in reply
     assert "MH-ASST-2026-001" in reply
-    assert mock_model.generate_content.called
+    assert mock_client.models.generate_content.called
 
     os.environ["GEMINI_API_KEY"] = ""
 
 def test_assistant_gemini_fallback_on_api_error(monkeypatch):
     """Verifies that if the Gemini API call encounters an error, the assistant gracefully falls back to grounded heuristics."""
     from unittest.mock import MagicMock
-    import google.generativeai as genai
+    from google import genai
 
     os.environ["DEMO_MODE"] = "true"
     os.environ["GEMINI_API_KEY"] = "mock-key-causing-error"
 
-    mock_model = MagicMock()
-    mock_model.generate_content.side_effect = Exception("503 Service Unavailable: Quota Exceeded")
+    mock_client = MagicMock()
+    mock_client.models.generate_content.side_effect = Exception("503 Service Unavailable: Quota Exceeded")
 
-    monkeypatch.setattr(genai, "configure", lambda *args, **kwargs: None)
-    monkeypatch.setattr(genai, "GenerativeModel", lambda *args, **kwargs: mock_model)
+    monkeypatch.setattr(genai, "Client", lambda *args, **kwargs: mock_client)
 
     # Should not raise; should fall back gracefully
     reply = generate_assistant_response(

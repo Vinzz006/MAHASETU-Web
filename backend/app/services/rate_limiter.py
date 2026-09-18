@@ -53,3 +53,5 @@ login_rate_limiter = SlidingWindowRateLimiter(requests_limit=10, window_seconds=
 register_rate_limiter = SlidingWindowRateLimiter(requests_limit=10, window_seconds=60, name="RegisterLimiter")
 # 30 public passport verification requests per minute per IP
 verify_rate_limiter = SlidingWindowRateLimiter(requests_limit=30, window_seconds=60, name="VerifyLimiter")
+# 15 AI assistant queries per minute per citizen/IP
+assistant_rate_limiter = SlidingWindowRateLimiter(requests_limit=15, window_seconds=60, name="AssistantLimiter")

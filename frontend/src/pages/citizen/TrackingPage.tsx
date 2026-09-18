@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, ApplicationDetail } from '../../api/client';
-import { useDemo } from '../../context/DemoContext';
 import { GrievanceModal } from '../../components/GrievanceModal';
 import {
   CheckCircle2, Clock, AlertTriangle, ArrowRight, Play, RefreshCw,
@@ -12,7 +11,6 @@ import { useAuth } from '../../context/AuthContext';
 
 export const TrackingPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { setIsInspectorOpen, inspectTransformation } = useDemo();
   const { currentUser } = useAuth();
 
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
@@ -355,16 +353,6 @@ export const TrackingPage: React.FC = () => {
             >
               <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
               <span>Raise Grievance</span>
-            </button>
-
-            <button
-              onClick={() => {
-                inspectTransformation('DEPT_A', 'DEPT_B', application.citizen_data);
-              }}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors flex items-center gap-1.5 border border-slate-300"
-            >
-              <Database className="w-3.5 h-3.5 text-amber-600" />
-              <span>Inspect Canonical Transform</span>
             </button>
           </div>
         </div>

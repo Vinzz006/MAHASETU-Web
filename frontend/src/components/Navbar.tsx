@@ -24,7 +24,7 @@ import {
 export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) => {
   const navigate = useNavigate();
   const { currentUser, switchPersona, logout, personas } = useAuth();
-  const { isFailureSimulated, inspectTransformation } = useDemo();
+  const { isFailureSimulated } = useDemo();
   const { language, toggleLanguage, t } = useLanguage();
   const location = useLocation();
 
@@ -453,17 +453,8 @@ export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) =>
             </div>
           </nav>
 
-          {/* Right Section: Data Inspector & Persona Selector */}
+          {/* Right Section: Persona Selector & Notifications */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => inspectTransformation('DEPT_A', 'DEPT_B')}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shadow"
-              title="Inspect live Canonical Transformation"
-            >
-              <FileCheck className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">{t('nav.data_inspector')}</span>
-            </button>
-
             {/* Notification Bell */}
             <NotificationBell />
 

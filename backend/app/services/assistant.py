@@ -7,7 +7,7 @@ logger = logging.getLogger("mahasetu.assistant")
 def get_gemini_metadata() -> Dict[str, Any]:
     """Returns the operational status and model metadata for Google Gemini."""
     key = os.getenv("GEMINI_API_KEY", "").strip()
-    model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip() or "gemini-1.5-flash"
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
     return {
         "gemini_active": bool(key),
         "model": model,
@@ -86,10 +86,10 @@ def generate_assistant_response(
     applications: List[Dict[str, Any]],
     services: List[Dict[str, Any]]
 ) -> str:
-    """Generates an intelligent assistant response using Google Gemini, with automatic fallback."""
+    """Generates an intelligent assistant response using Google Gemini (google-genai SDK), with automatic fallback."""
     demo_mode = os.getenv("DEMO_MODE", "true").lower() in ("true", "1", "yes")
     gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip() or "gemini-1.5-flash"
+    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 
     # Enforce API key requirement in live non-demo mode for compliance
     if not gemini_api_key:
@@ -100,42 +100,54 @@ def generate_assistant_response(
             )
         return _mock_grounded_response(user_message, applications, services)
 
-    # Live Gemini Call via google.generativeai
+    # Live Gemini Call via unified google-genai SDK
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_api_key)
+        from google import genai
+        from google.genai import types
 
-        generation_config = {
-            "temperature": 0.3,
-            "top_p": 0.85,
-            "max_output_tokens": 1024,
-        }
+        client = genai.Client(api_key=gemini_api_key)
 
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=system_context,
-            generation_config=generation_config
-        )
-
-        # Build multi-turn chat contents adhering to Gemini API specifications
+        # Build multi-turn chat contents adhering strictly to google-genai types
+        # Basic prompt-injection hygiene: citizen's raw message is isolated in its own user Content object
         chat_contents = []
         for msg in conversation_history[-8:]:
             role = "user" if msg["sender"] == "user" else "model"
-            chat_contents.append({"role": role, "parts": [msg["content"]]})
+            chat_contents.append(
+                types.Content(
+                    role=role,
+                    parts=[types.Part.from_text(text=msg["content"])]
+                )
+            )
 
-        chat_contents.append({"role": "user", "parts": [user_message]})
+        chat_contents.append(
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=user_message)]
+            )
+        )
 
-        response = model.generate_content(chat_contents)
+        config = types.GenerateContentConfig(
+            system_instruction=system_context,
+            temperature=0.3,
+            max_output_tokens=1024,
+        )
+
+        response = client.models.generate_content(
+            model=model_name,
+            contents=chat_contents,
+            config=config
+        )
+
         if response and response.text:
             return response.text.strip()
 
         return "I am processing your inquiry with MahaSetu records. Please verify your application status on the Tracking page."
 
     except Exception as exc:
-        logger.error(f"Google Gemini invocation failed ({exc}); initiating grounded fallback: {exc}")
+        logger.error("Google Gemini invocation failed: %s", exc)
         if demo_mode:
             return _mock_grounded_response(user_message, applications, services)
-        raise exc
+        return "MahaSetu Mitra AI assistant is temporarily unavailable. Please try again in a few moments or verify your application on the Tracking page."
 
 def _mock_grounded_response(
     query: str,

@@ -25,7 +25,7 @@ export const LoginPage: React.FC = () => {
 
   // Form fields
   const [username, setUsername] = useState('9999999999');
-  const [password, setPassword] = useState('mahasetu123');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // Register form state (Citizen only)
@@ -58,14 +58,14 @@ export const LoginPage: React.FC = () => {
 
     if (tab === 'CITIZEN') {
       setUsername('9999999999');
-      setPassword('mahasetu123');
+      setPassword('');
     } else if (tab === 'OFFICER') {
       setUsername('8888888888'); // Default Dept C Employment
-      setPassword('mahasetu123');
+      setPassword('');
       setOfficerDept('DEPT_C');
     } else if (tab === 'ADMIN') {
       setUsername('7777777777'); // Default Central Admin
-      setPassword('mahasetu123');
+      setPassword('');
       setAdminType('ADMIN');
     }
   };
@@ -129,17 +129,23 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
+    if (!regPassword || regPassword.length < 8) {
+      setError('Password must be at least 8 characters long and contain both letters and numbers.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await register({
         name: regName,
         mobile: regMobile,
         email: regEmail,
-        password: regPassword || 'mahasetu123'
+        password: regPassword
       });
       setSuccessMsg(res.message || 'Citizen registration submitted. Account is pending state administrative approval.');
       setMode('LOGIN');
       setUsername(regMobile);
-      setPassword(regPassword || 'mahasetu123');
+      setPassword(regPassword);
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please check your details and try again.');
     } finally {
@@ -534,14 +540,14 @@ export const LoginPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Quick Credential Pre-fill Demo Shortcut */}
+                {/* Role Identifier Badge */}
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span>Demo Credentials Loaded:</span>
+                    <span>Selected Account Identifier:</span>
                   </div>
                   <code className="bg-slate-200/80 px-1.5 py-0.5 rounded text-slate-800 font-mono text-[10px]">
-                    {username} • mahasetu123
+                    {username}
                   </code>
                 </div>
 
