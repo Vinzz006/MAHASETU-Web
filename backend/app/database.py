@@ -7,7 +7,9 @@ def utc_now():
     """Returns naive datetime in UTC for SQLite/PostgreSQL compatibility."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./mahasetu.db")
+from backend.app.config import get_settings
+
+DATABASE_URL = get_settings().DATABASE_URL
 
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):

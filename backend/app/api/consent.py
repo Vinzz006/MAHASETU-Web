@@ -61,3 +61,14 @@ def get_consent_by_application(
         )
 
     return consent
+
+@router.get("/my-history", response_model=list[ConsentResponse])
+def get_my_consent_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Returns the full consent and data disclosure history for the authenticated citizen."""
+    consents = db.query(Consent).filter(
+        Consent.citizen_id == current_user.id
+    ).order_by(Consent.granted_at.desc(), Consent.id.desc()).all()
+    return consents

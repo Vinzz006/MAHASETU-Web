@@ -4,7 +4,7 @@ import asyncio
 import random
 from typing import List, Optional, AsyncIterator
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -429,10 +429,17 @@ def _is_department_authorized_for_app(app: Application, user: User, db: Session)
 
 @router.get("", response_model=List[ApplicationSummaryResponse])
 def list_applications(
+    response: Response,
     status: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    page_size = min(max(1, page_size), 100)
+    page = max(1, page)
+    offset = (page - 1) * page_size
+
     query = db.query(Application)
 
     # Citizen: strictly limited to own applications
@@ -476,7 +483,13 @@ def list_applications(
     if status:
         query = query.filter(Application.status == status)
 
-    apps = query.order_by(Application.created_at.desc()).all()
+    total = query.count()
+    apps = query.order_by(Application.created_at.desc()).offset(offset).limit(page_size).all()
+
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Page"] = str(page)
+    response.headers["X-Page-Size"] = str(page_size)
+    response.headers["X-Total-Pages"] = str(max(1, (total + page_size - 1) // page_size))
 
     summaries = []
     for a in apps:

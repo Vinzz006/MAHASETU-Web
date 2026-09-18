@@ -1,0 +1,20 @@
+{
+  "short_name": "MahaSetu",
+  "name": "MahaSetu — Maharashtra Unified Interoperability Platform",
+  "description": "Cross-departmental data exchange, unified citizen services, and verifiable digital service passports.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#f8fafc",
+  "theme_color": "#1e3a8a",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "lang": "en-IN",
+  "categories": ["government", "productivity"]
+}

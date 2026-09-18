@@ -65,3 +65,12 @@ class PendingRegistrationItem(BaseModel):
 
 class RejectRegistrationRequest(BaseModel):
     reason: str
+
+class BulkApproveRequest(BaseModel):
+    user_ids: list[str]
+
+class BulkApproveResponse(BaseModel):
+    status: str
+    approved_count: int
+    approved_ids: list[str]
+    failed_ids: list[str]

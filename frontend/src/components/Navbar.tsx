@@ -20,6 +20,7 @@ import {
   Heart, CloudFog, BrainCircuit, Trophy, Beaker,
   LogIn, LogOut, User
 } from 'lucide-react';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) => {
   const navigate = useNavigate();
@@ -496,6 +497,9 @@ export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) =>
                 Admin
               </button>
             </div>
+
+            {/* Bilingual Language Switcher (English / Marathi) */}
+            <LanguageSwitcher />
 
             {/* Auth Action: Sign In vs Current User Profile & Sign Out */}
             {currentUser ? (

@@ -26,6 +26,7 @@ const ResidentProfilePage = lazyNamed(() => import('./pages/citizen/ResidentProf
 const ServicesPage = lazyNamed(() => import('./pages/citizen/ServicesPage'), 'ServicesPage');
 const ApplicationFormPage = lazyNamed(() => import('./pages/citizen/ApplicationFormPage'), 'ApplicationFormPage');
 const ConsentPage = lazyNamed(() => import('./pages/citizen/ConsentPage'), 'ConsentPage');
+const CitizenConsentHistoryPage = lazyNamed(() => import('./pages/citizen/CitizenConsentHistoryPage'), 'CitizenConsentHistoryPage');
 const TrackingPage = lazyNamed(() => import('./pages/citizen/TrackingPage'), 'TrackingPage');
 const PassportCertificatePage = lazyNamed(() => import('./pages/citizen/PassportCertificatePage'), 'PassportCertificatePage');
 const PublicPassportVerifierPage = lazyNamed(() => import('./pages/public/PublicPassportVerifierPage'), 'PublicPassportVerifierPage');
@@ -135,6 +136,7 @@ export function App() {
                     <Route path="/services/:serviceId/apply" element={<ApplicationFormPage />} />
                     <Route path="/citizen/dashboard" element={<DashboardPage />} />
                     <Route path="/citizen/profile" element={<ResidentProfilePage />} />
+                    <Route path="/citizen/consent-history" element={<CitizenConsentHistoryPage />} />
                     <Route path="/applications/:id/consent" element={<ConsentPage />} />
                     <Route path="/applications/:id/track" element={<TrackingPage />} />
                     <Route path="/passport/:id" element={<PassportCertificatePage />} />

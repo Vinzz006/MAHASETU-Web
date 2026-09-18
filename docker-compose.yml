@@ -23,9 +23,11 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     container_name: mahasetu-backend
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://mahasetu_user:mahasetu_password@postgres:5432/mahasetu_db
-      JWT_SECRET: mahasetu-hackathon-2026-interop-secret-key-pune
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8000:8000"
     depends_on:

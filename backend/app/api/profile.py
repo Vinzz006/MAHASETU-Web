@@ -19,12 +19,27 @@ router = APIRouter(prefix="/api/citizens", tags=["Resident Profile"])
 
 @router.get("", response_model=List[CitizenSummaryResponse])
 def list_all_citizens(
+    response: Response,
+    page: int = 1,
+    page_size: int = 50,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["ADMIN"]))
 ):
-    """Lists all registered citizens with profile completion status for administrative management."""
-    users = db.query(User).filter(User.role == "CITIZEN").order_by(User.created_at.desc()).all()
-    profiles = {p.user_id: p for p in db.query(ResidentProfile).all()}
+    """Lists registered citizens with pagination and profile completion status for administrative management."""
+    page_size = min(max(1, page_size), 100)
+    page = max(1, page)
+    offset = (page - 1) * page_size
+
+    query = db.query(User).filter(User.role == "CITIZEN").order_by(User.created_at.desc())
+    total = query.count()
+    users = query.offset(offset).limit(page_size).all()
+
+    user_ids = [u.id for u in users]
+    profiles = {p.user_id: p for p in db.query(ResidentProfile).filter(ResidentProfile.user_id.in_(user_ids)).all()} if user_ids else {}
+
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Page"] = str(page)
+    response.headers["X-Page-Size"] = str(page_size)
 
     summaries = []
     for u in users:
