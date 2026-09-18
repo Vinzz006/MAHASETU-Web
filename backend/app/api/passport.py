@@ -171,7 +171,8 @@ def _mask_name(full_name: str) -> str:
 from backend.app.services.rate_limiter import verify_rate_limiter
 
 @router.get("/verify/{id_or_hash}", dependencies=[Depends(verify_rate_limiter)])
-def verify_service_passport_authenticity(id_or_hash: str, db: Session = Depends(get_db)):
+def verify_service_passport_authenticity(id_or_hash: str, response: Response, db: Session = Depends(get_db)):
+    response.headers["Cache-Control"] = "public, max-age=60"
     app = db.query(Application).filter(
         (Application.application_number == id_or_hash) | (Application.id == id_or_hash)
     ).first()

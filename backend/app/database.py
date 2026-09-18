@@ -12,10 +12,21 @@ from backend.app.config import get_settings
 DATABASE_URL = get_settings().DATABASE_URL
 
 connect_args = {}
+engine_kwargs = {}
+
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
-
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+    engine = create_engine(DATABASE_URL, connect_args=connect_args)
+else:
+    # Production PostgreSQL Connection Pool Configuration
+    engine_kwargs = {
+        "pool_size": 20,
+        "max_overflow": 20,
+        "pool_pre_ping": True,
+        "pool_recycle": 1800,
+        "pool_timeout": 30,
+    }
+    engine = create_engine(DATABASE_URL, **engine_kwargs)
 
 # Enable foreign keys for SQLite
 if DATABASE_URL.startswith("sqlite"):

@@ -64,12 +64,22 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             async for chunk in response.body_iterator:
                 response_body += chunk
 
+            # If response was compressed with gzip, decompress it before caching text
+            if response.headers.get("content-encoding") == "gzip":
+                import gzip
+                try:
+                    decoded_body = gzip.decompress(response_body).decode("utf-8")
+                except Exception:
+                    decoded_body = response_body.decode("utf-8", errors="replace")
+            else:
+                decoded_body = response_body.decode("utf-8", errors="replace")
+
             cache.set(
                 cache_key,
                 {
                     "status": "COMPLETED",
                     "status_code": response.status_code,
-                    "body": response_body.decode("utf-8")
+                    "body": decoded_body
                 },
                 ttl_seconds=86400
             )

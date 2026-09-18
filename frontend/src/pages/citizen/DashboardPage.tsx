@@ -128,11 +128,11 @@ function ProfileMeter({ pct, hasProfile }: { pct: number; hasProfile: boolean })
 // ---------------------------------------------------------------------------
 // Live indicator
 // ---------------------------------------------------------------------------
-function LivePulse() {
+function LivePulse({ active = true }: { active?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-      LIVE
+    <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${active ? "text-emerald-400" : "text-slate-400"}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
+      {active ? "LIVE SSE" : "SYNCED"}
     </span>
   );
 }
@@ -247,14 +247,61 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  // SSE live feed
+  // SSE live feed with proper connection lifecycle and unmount cleanup
   useEffect(() => {
     loadData();
-    // Set up polling fallback (SSE not yet available in some demo environments)
-    const interval = setInterval(() => {
-      api.getApplications().then(setApplications).catch(() => {});
-    }, 8000);
-    return () => clearInterval(interval);
+    let es: EventSource | null = null;
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+
+    try {
+      const url = api.getApplicationLiveFeedUrl();
+      es = new EventSource(url);
+      esRef.current = es;
+
+      es.onopen = () => {
+        setLiveConnected(true);
+        if (fallbackInterval) {
+          clearInterval(fallbackInterval);
+          fallbackInterval = null;
+        }
+      };
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "application_update" && data.applications) {
+            setApplications(data.applications);
+          }
+        } catch {
+          // ignore keepalive comments / ping
+        }
+      };
+
+      es.onerror = () => {
+        setLiveConnected(false);
+        // Fall back to polling interval if SSE disconnects or encounters error
+        if (!fallbackInterval) {
+          fallbackInterval = setInterval(() => {
+            api.getApplications().then(setApplications).catch(() => {});
+          }, 8000);
+        }
+      };
+    } catch (err) {
+      console.warn("SSE initialization failed, using polling fallback", err);
+      fallbackInterval = setInterval(() => {
+        api.getApplications().then(setApplications).catch(() => {});
+      }, 8000);
+    }
+
+    return () => {
+      if (es) {
+        es.close();
+      }
+      esRef.current = null;
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+      }
+    };
   }, []);
 
   const reworkApps = applications.filter((a) => a.status === "REWORK");
@@ -299,7 +346,7 @@ export const DashboardPage: React.FC = () => {
                     <Bell className="inline w-2.5 h-2.5 mr-0.5" />{summary.unread_notifications} Notifications
                   </span>
                 )}
-                <LivePulse />
+                <LivePulse active={liveConnected} />
               </div>
             )}
           </div>
@@ -348,7 +395,7 @@ export const DashboardPage: React.FC = () => {
               <p className="text-[10px] text-slate-500 mt-0.5">Live cross-department pipeline tracking — auto-refreshes every 8s</p>
             </div>
             <div className="flex items-center gap-2">
-              <LivePulse />
+              <LivePulse active={liveConnected} />
               <button onClick={loadData} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>

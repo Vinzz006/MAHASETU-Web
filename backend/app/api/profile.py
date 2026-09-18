@@ -368,7 +368,7 @@ def get_citizen_profile(
     return filtered_data
 
 @router.post("/me/passport-document")
-async def upload_passport_document(
+def upload_passport_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -385,7 +385,7 @@ async def upload_passport_document(
         )
 
     # 2. Enforce 10 MB limit server-side
-    content = await file.read()
+    content = file.file.read()
     if len(content) > MAX_PDF_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,

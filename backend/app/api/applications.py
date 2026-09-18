@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from backend.app.database import get_db
+from backend.app.database import get_db, SessionLocal
 from backend.app.models.application import Application
 from backend.app.models.user import User
 from backend.app.models.consent import Consent
@@ -129,47 +129,82 @@ def get_citizen_dashboard_summary(
 # ---------------------------------------------------------------------------
 # SSE Live Feed — application status stream for the citizen dashboard
 # ---------------------------------------------------------------------------
-async def _application_event_stream(citizen_id: str, db: Session) -> AsyncIterator[str]:
+_MAX_CONCURRENT_SSE = 100
+_sse_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_SSE)
+
+def _query_citizen_apps_summary(citizen_id: str) -> list[dict]:
+    """Helper executed in worker thread to prevent event-loop blocking, using short-lived session."""
+    with SessionLocal() as session:
+        apps = session.query(Application).filter(Application.citizen_id == citizen_id).all()
+        return [
+            {
+                "id": a.id,
+                "application_number": a.application_number,
+                "status": a.status,
+                "current_department": a.current_department,
+                "updated_at": a.updated_at.isoformat() if a.updated_at else "",
+            }
+            for a in apps
+        ]
+
+async def _application_event_stream(citizen_id: str, request: Request, max_events: Optional[int] = None) -> AsyncIterator[str]:
     """
     Streams Server-Sent Events with the citizen's latest application status every 4 seconds.
-    Yields JSON payloads prefixed with `data:` per the SSE spec.
+    Non-blocking: offloads DB queries to threadpool via asyncio.to_thread and releases connections immediately.
+    Terminates instantly if client disconnects.
     """
-    for _ in range(30):  # 30 ticks × 4s = 2 min max stream duration
-        try:
-            apps = db.query(Application).filter(Application.citizen_id == citizen_id).all()
-            payload = {
-                "type": "STATUS_UPDATE",
-                "applications": [
-                    {
-                        "id": a.id,
-                        "application_number": a.application_number,
-                        "status": a.status,
-                        "current_department": a.current_department,
-                        "updated_at": a.updated_at.isoformat(),
-                    }
-                    for a in apps
-                ],
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            yield f"data: {json.dumps(payload)}\n\n"
-        except Exception:
-            yield "data: {\"type\": \"HEARTBEAT\"}\n\n"
-        await asyncio.sleep(4)
-    yield "data: {\"type\": \"STREAM_CLOSED\"}\n\n"
+    try:
+        await asyncio.wait_for(_sse_semaphore.acquire(), timeout=2.0)
+    except asyncio.TimeoutError:
+        yield "data: {\"type\": \"ERROR\", \"message\": \"Server SSE capacity reached. Please refresh dashboard.\"}\n\n"
+        return
+
+    try:
+        total_ticks = max_events if max_events is not None else 30
+        for _ in range(total_ticks):  # max ticks per connection
+            if await request.is_disconnected():
+                break
+
+            try:
+                apps_data = await asyncio.to_thread(_query_citizen_apps_summary, citizen_id)
+                payload = {
+                    "type": "STATUS_UPDATE",
+                    "applications": apps_data,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+            except Exception:
+                yield "data: {\"type\": \"HEARTBEAT\"}\n\n"
+
+            # If bounded to a single event or done, don't sleep
+            if max_events is not None and max_events <= 1:
+                break
+
+            # Sleep in 1-second chunks to react quickly if client disconnects
+            for _ in range(4):
+                if await request.is_disconnected():
+                    return
+                await asyncio.sleep(1)
+
+        yield "data: {\"type\": \"STREAM_CLOSED\"}\n\n"
+    finally:
+        _sse_semaphore.release()
 
 
 @router.get("/live-feed")
 async def application_live_feed(
     request: Request,
-    db: Session = Depends(get_db),
+    max_events: Optional[int] = None,
     current_user: User = Depends(get_current_user),
 ):
     """
     Server-Sent Events (SSE) live feed for a citizen's real-time application status.
     Streams updates every 4 seconds. Max 2 minutes per connection.
+    Guaranteed non-blocking on the event loop with short-lived session pooling.
+    Accepts optional max_events parameter to limit number of ticks.
     """
     return StreamingResponse(
-        _application_event_stream(current_user.id, db),
+        _application_event_stream(current_user.id, request, max_events=max_events),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

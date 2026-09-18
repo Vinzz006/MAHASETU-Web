@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
@@ -220,19 +221,27 @@ def list_conversations(
         .order_by(AssistantConversation.updated_at.desc())
         .all()
     )
-    result = []
-    for c in convs:
-        count = db.query(AssistantMessage).filter(AssistantMessage.conversation_id == c.id).count()
-        result.append(
-            ConversationSummary(
-                id=c.id,
-                title=c.title,
-                created_at=c.created_at,
-                updated_at=c.updated_at,
-                message_count=count
-            )
+    conv_ids = [c.id for c in convs]
+    message_counts = {}
+    if conv_ids:
+        counts = (
+            db.query(AssistantMessage.conversation_id, func.count(AssistantMessage.id))
+            .filter(AssistantMessage.conversation_id.in_(conv_ids))
+            .group_by(AssistantMessage.conversation_id)
+            .all()
         )
-    return result
+        message_counts = dict(counts)
+
+    return [
+        ConversationSummary(
+            id=c.id,
+            title=c.title,
+            created_at=c.created_at,
+            updated_at=c.updated_at,
+            message_count=message_counts.get(c.id, 0)
+        )
+        for c in convs
+    ]
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
 def get_conversation_detail(

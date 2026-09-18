@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, Request, Depends, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 
@@ -135,6 +136,16 @@ async def lifespan(app: FastAPI):
     init_firebase()
     # Register event listeners
     register_default_handlers()
+
+    # Expand Starlette/AnyIO sync threadpool limiter (default 40 is a bottleneck under concurrent load)
+    try:
+        import anyio.to_thread
+        limiter = anyio.to_thread.current_default_thread_limiter()
+        limiter.total_tokens = max(100, (os.cpu_count() or 4) * 25)
+        print(f"[MahaSetu Hub] Concurrency threadpool sized to {limiter.total_tokens} worker threads.")
+    except Exception as e:
+        print(f"[MahaSetu Hub WARNING]: Could not resize threadpool limiter: {e}")
+
     print("[MahaSetu Hub] Core Interoperability Hub initialized and running under /api/v1.")
     yield
     print("[MahaSetu Hub] Hub shutting down.")
@@ -162,6 +173,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "X-Request-ID", "Idempotency-Key"],
 )
+
+# HTTP Compression for responses larger than 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Request Correlation & Timing Middleware
 app.add_middleware(RequestCorrelationMiddleware)
