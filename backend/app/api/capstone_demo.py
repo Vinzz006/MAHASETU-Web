@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/capstone-demo", tags=["Grand Capstone Judge Presentation & Demonstration Hub"])
+router = APIRouter(prefix="/api/capstone-demo", tags=["Grand Capstone Presentation & Demonstration Hub"])
 
 FIFTEEN_PHASE_CAPABILITY_MATRIX = [
     {"phase": "Phase 1", "title": "Core Interoperability Hub & Canonical Model", "focus": "Canonical Data Model, Legacy Pipe Adapter, Universal Service Passport Tracking"},
@@ -27,7 +27,7 @@ FIFTEEN_PHASE_CAPABILITY_MATRIX = [
 @router.get("/summary")
 def get_capstone_summary():
     """
-    Returns the complete 10-phase enterprise platform overview for Hackathon judges.
+    Returns the complete 10-phase enterprise platform overview for platform evaluation.
     """
     return {
         "platform": "MAHASETU v10.0 ENTERPRISE PINNACLE",

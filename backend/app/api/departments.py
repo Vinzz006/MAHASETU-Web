@@ -56,7 +56,7 @@ def get_department_status(department: str):
 def trace_transformation(req: Dict[str, Any]):
     """
     Simulates and traces canonical transformations between any two departments.
-    Essential for judge demo of interoperability mechanics.
+    Essential for interactive demonstration of interoperability mechanics.
     """
     src = req.get("source_department", "DEPT_A")
     tgt = req.get("target_department", "DEPT_B")

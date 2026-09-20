@@ -73,16 +73,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             try {
               const fetchedPersonas = await api.getPersonas();
               setPersonas(fetchedPersonas);
+              localStorage.setItem('mahasetu_cached_personas', JSON.stringify(fetchedPersonas));
             } catch {
               setPersonas([]);
             }
           } else {
-            setPersonas([]);
+            const cached = localStorage.getItem('mahasetu_cached_personas');
+            if (cached) {
+              try {
+                setPersonas(JSON.parse(cached));
+              } catch {
+                setPersonas([]);
+              }
+            } else {
+              setPersonas([]);
+            }
           }
         } catch (err) {
           console.warn('Saved token invalid or expired. Session cleared.');
           localStorage.removeItem('mahasetu_token');
           localStorage.removeItem('mahasetu_role');
+          localStorage.removeItem('mahasetu_cached_personas');
           setCurrentUser(null);
           setPersonas([]);
         }
@@ -124,11 +135,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const fetchedPersonas = await api.getPersonas();
         setPersonas(fetchedPersonas);
+        localStorage.setItem('mahasetu_cached_personas', JSON.stringify(fetchedPersonas));
       } catch {
         setPersonas([]);
       }
     } else {
-      setPersonas([]);
+      const cached = localStorage.getItem('mahasetu_cached_personas');
+      if (cached) {
+        try {
+          setPersonas(JSON.parse(cached));
+        } catch {
+          setPersonas([]);
+        }
+      } else {
+        setPersonas([]);
+      }
     }
   };
 
@@ -200,7 +221,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOut(auth).catch(() => {});
     localStorage.removeItem('mahasetu_token');
     localStorage.removeItem('mahasetu_role');
+    localStorage.removeItem('mahasetu_cached_personas');
     setCurrentUser(null);
+    setPersonas([]);
   };
 
   const isPendingApproval = currentUser?.registration_status === 'PENDING';

@@ -36,7 +36,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.dpi_gateway': 'National DPI Gateway',
     'nav.disbursal_ledger': 'DBT Treasury Ledger',
     'nav.field_verify': 'Field Verification',
-    'action.start_tour': 'Judge Mode Tour',
+    'action.start_tour': 'Platform Tour',
 
     // Hero & Proposition
     'hero.title': 'MAHASETU',
@@ -91,7 +91,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.dpi_gateway': 'राष्ट्रीय डीपीआय गेटवे',
     'nav.disbursal_ledger': 'थेट लाभ हस्तांतरण नोंदवही',
     'nav.field_verify': 'क्षेत्रीय पडताळणी',
-    'action.start_tour': 'परीक्षक फेरफटका',
+    'action.start_tour': 'व्यासपीठ फेरफटका',
 
     // Hero & Proposition
     'hero.title': 'महासेतू',

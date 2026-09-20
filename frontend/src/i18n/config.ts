@@ -31,7 +31,7 @@ const resources = {
         field_verify: 'Field Verification'
       },
       action: {
-        start_tour: 'Judge Mode Tour',
+        start_tour: 'Platform Tour',
         apply: 'Apply Now',
         track: 'Track Application',
         view_passport: 'View Verifiable Service Passport',
@@ -95,7 +95,7 @@ const resources = {
         field_verify: 'क्षेत्रीय पडताळणी'
       },
       action: {
-        start_tour: 'परीक्षक फेरफटका',
+        start_tour: 'व्यासपीठ फेरफटका',
         apply: 'अर्ज करा',
         track: 'स्थिती तपासा',
         view_passport: 'सेवा पासपोर्ट पहा',

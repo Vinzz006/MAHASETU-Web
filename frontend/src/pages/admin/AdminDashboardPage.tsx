@@ -26,14 +26,21 @@ export const AdminDashboardPage: React.FC = () => {
 
   const loadDashboardData = async () => {
     try {
-      const [m, pending, apps] = await Promise.all([
+      const [m, apps, pending] = await Promise.all([
         api.getDashboardMetrics(),
-        api.getPendingRegistrations(),
-        api.getApplications()
+        api.getApplications().catch(err => {
+          console.warn('Failed to load applications:', err);
+          return [];
+        }),
+        api.getPendingRegistrations().catch(err => {
+          // Gracefully handle 403 Forbidden for non-admin roles (e.g. Officer preview)
+          console.warn('Pending registrations unavailable for current role:', err);
+          return [] as PendingRegistration[];
+        })
       ]);
       setMetrics(m);
-      setPendingUsers(pending);
-      setApplications(apps);
+      setApplications(apps || []);
+      setPendingUsers(pending || []);
       setError(null);
     } catch (e: any) {
       console.error('Failed to load admin dashboard data', e);
@@ -211,6 +218,30 @@ export const AdminDashboardPage: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Notice for Officer sessions */}
+      {currentUser && ['OFFICER', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'DEPARTMENT_ADMIN'].includes(currentUser.role) && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <Building className="w-5 h-5 text-blue-700 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-blue-900">
+                Department Officer Session Active ({currentUser.role})
+              </p>
+              <p className="text-xs text-blue-700">
+                Viewing statewide interop telemetry in monitor mode. Use the Officer Console for departmental queue actions.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/admin/officer"
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+          >
+            <span>Open Officer Console</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
 
       {/* Real Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
@@ -466,7 +497,11 @@ export const AdminDashboardPage: React.FC = () => {
           </span>
         </div>
 
-        {pendingUsers.length === 0 ? (
+        {currentUser && !['ADMIN', 'SYSTEM_ADMIN'].includes(currentUser.role) ? (
+          <div className="p-8 text-center text-xs text-slate-500 bg-slate-50/50">
+            Citizen registration authorizations are managed by Central System Administrators. (Current tier: <span className="font-mono font-bold text-slate-700">{currentUser.role}</span>)
+          </div>
+        ) : pendingUsers.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-500">
             No self-registered user accounts pending approval. All active users have valid authorization.
           </div>

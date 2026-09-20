@@ -239,7 +239,7 @@ export const LandingPage: React.FC = () => {
             </Link>
             <Link to="/admin/capstone-showcase"
               className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-2xl border border-indigo-400/30 shadow-xl transition-all">
-              <Play className="w-4 h-4 fill-white" /> Judge Showcase Demo
+              <Play className="w-4 h-4 fill-white" /> Platform Showcase Demo
             </Link>
             <button onClick={() => setIsInspectorOpen(true)}
               className="flex items-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm rounded-2xl border border-white/20 transition-all">

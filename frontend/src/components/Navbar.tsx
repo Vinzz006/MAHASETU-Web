@@ -99,16 +99,6 @@ export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) =>
             </div>
           )}
 
-          {/* Judge Mode Interactive Tour Button */}
-          {onOpenTour && (
-            <button
-              onClick={onOpenTour}
-              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold transition-all shadow text-[11px]"
-            >
-              <Sparkles className="w-3 h-3 text-slate-950" />
-              <span>{t('action.start_tour')}</span>
-            </button>
-          )}
 
           {/* Bilingual Language Toggle */}
           <button
@@ -459,7 +449,7 @@ export const Navbar: React.FC<{ onOpenTour?: () => void }> = ({ onOpenTour }) =>
             {/* Notification Bell */}
             <NotificationBell />
 
-            {/* Persona Quick Toggle for Judges */}
+            {/* Persona Quick Toggle */}
             <div className="flex items-center bg-slate-800/90 rounded-lg p-0.5 border border-slate-700 text-xs">
               <span className="text-slate-400 px-2 flex items-center gap-1 font-medium hidden md:flex">
                 <Users className="w-3.5 h-3.5" />
