@@ -5,7 +5,6 @@ import { DemoProvider } from './context/DemoContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
-import { DemoFloatingBar } from './components/DemoFloatingBar';
 import { CanonicalInspector } from './components/CanonicalInspector';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { GuidedTourModal } from './components/GuidedTourModal';
@@ -288,7 +287,6 @@ export function App() {
               <Footer />
               <NotificationDrawer />
               <GuidedTourModal isOpen={isTourOpen} onClose={() => setIsTourOpen(false)} />
-              <DemoFloatingBar />
               <CanonicalInspector />
               <AssistantChat />
             </div>
