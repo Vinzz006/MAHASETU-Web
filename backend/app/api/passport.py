@@ -1,10 +1,11 @@
 import hashlib
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
+from backend.app.services.pdf_receipt import generate_minimal_pdf_receipt
 from backend.app.models.application import Application
 from backend.app.models.consent import Consent
 from backend.app.models.transaction import DepartmentTransaction
@@ -170,7 +171,8 @@ def _mask_name(full_name: str) -> str:
 from backend.app.services.rate_limiter import verify_rate_limiter
 
 @router.get("/verify/{id_or_hash}", dependencies=[Depends(verify_rate_limiter)])
-def verify_service_passport_authenticity(id_or_hash: str, db: Session = Depends(get_db)):
+def verify_service_passport_authenticity(id_or_hash: str, response: Response, db: Session = Depends(get_db)):
+    response.headers["Cache-Control"] = "public, max-age=60"
     app = db.query(Application).filter(
         (Application.application_number == id_or_hash) | (Application.id == id_or_hash)
     ).first()
@@ -203,3 +205,47 @@ def verify_service_passport_authenticity(id_or_hash: str, db: Session = Depends(
         ],
         "verified_at": datetime.now(timezone.utc).isoformat()
     }
+
+
+@router.get("/{application_id}/receipt.pdf")
+def get_application_pdf_receipt(
+    application_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    app = db.query(Application).filter(
+        (Application.id == application_id) | (Application.application_number == application_id)
+    ).first()
+
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    if current_user.role == "CITIZEN" and app.citizen_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: You cannot download receipts for another citizen's application"
+        )
+
+    citizen_name = (app.citizen.name if app.citizen else None) or "Citizen"
+    tracking_id = app.application_number or str(app.id)
+    sha_hash = hashlib.sha256(f"{tracking_id}:{citizen_name}:{app.status}".encode()).hexdigest()
+
+    pdf_bytes = generate_minimal_pdf_receipt(
+        application_number=tracking_id,
+        citizen_name=citizen_name,
+        service_name="Maharashtra Employment & Skill Assistance Scheme",
+        status=app.status,
+        department=app.current_department or "Government of Maharashtra",
+        timestamp=app.created_at.strftime("%Y-%m-%d %H:%M:%S") if app.created_at else "N/A",
+        sha_hash=sha_hash[:24]
+    )
+
+    filename = f"MahaSetu_Receipt_{tracking_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache"
+        }
+    )

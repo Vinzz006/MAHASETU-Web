@@ -1,11 +1,12 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
 from backend.app.models.service import Service
 from backend.app.schemas.application import ServiceDefinition, ServiceCreate, ServiceUpdate
 from backend.app.auth import require_roles
+from backend.app.services.cache import cache
 
 router = APIRouter(prefix="/api/services", tags=["Government Services"])
 
@@ -82,10 +83,12 @@ def get_service_name(service_id: str) -> str:
 
 @router.get("", response_model=List[ServiceDefinition])
 def get_services(
+    response: Response,
     include_inactive: bool = False,
     db: Session = Depends(get_db)
 ):
-    """Returns the catalog of government services participating in MahaSetu."""
+    """Returns the catalog of government services participating in MahaSetu with Cache-Control headers."""
+    response.headers["Cache-Control"] = "public, max-age=120"
     ensure_initial_services(db)
     query = db.query(Service)
     if not include_inactive:
@@ -95,11 +98,16 @@ def get_services(
 
 
 @router.get("/stats")
-def get_service_stats(db: Session = Depends(get_db)):
+def get_service_stats(response: Response, db: Session = Depends(get_db)):
     """
     Public endpoint — returns platform-wide service catalog metrics
     for the Services Page hero banner. No auth required.
     """
+    response.headers["Cache-Control"] = "public, max-age=60"
+    cached = cache.get("services:stats")
+    if cached:
+        return cached
+
     ensure_initial_services(db)
     total = db.query(Service).count()
     active = db.query(Service).filter(Service.is_active == True).count()
@@ -113,15 +121,19 @@ def get_service_stats(db: Session = Depends(get_db)):
     avg_sla = round(sum(sla_values) / len(sla_values), 1) if sla_values else 0
     min_sla = min(sla_values) if sla_values else 0
 
-    return {
+    result = {
         "total_services": total,
         "active_services": active,
         "total_departments": len(departments),
         "avg_sla_days": avg_sla,
         "min_sla_days": min_sla,
+        "participating_departments": list(departments),
+        "categories_count": 4,
         "platform": "MahaSetu Interoperability Layer",
         "compliance": ["DPDP Act 2023", "Maharashtra IT Policy 2023", "W3C VC Standard"],
     }
+    cache.set("services:stats", result, ttl_seconds=60)
+    return result
 
 
 @router.get("/categories")

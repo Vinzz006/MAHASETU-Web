@@ -21,7 +21,10 @@ from backend.app.database import get_db
 from backend.app.models.user import User
 from backend.app.firebase import verify_firebase_id_token
 
-SECRET_KEY = os.getenv("JWT_SECRET")
+from backend.app.config import get_settings
+
+settings = get_settings()
+SECRET_KEY = settings.JWT_SECRET or os.getenv("JWT_SECRET")
 if not SECRET_KEY:
     raise RuntimeError(
         "FATAL: JWT_SECRET environment variable is not set! "
@@ -29,7 +32,7 @@ if not SECRET_KEY:
         "Refusing to start with a missing or default signing key."
     )
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
@@ -59,6 +62,9 @@ def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> User:
+    if not token and request is not None:
+        token = request.query_params.get("token")
+
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -8,7 +8,8 @@ from backend.app.models.user import User
 from backend.app.schemas.auth import (
     LoginRequest, TokenResponse, UserResponse,
     RegisterRequest, RegistrationResponse,
-    PendingRegistrationItem, RejectRegistrationRequest
+    PendingRegistrationItem, RejectRegistrationRequest,
+    BulkApproveRequest, BulkApproveResponse
 )
 from backend.app.auth import (
     verify_password, get_password_hash, create_access_token,
@@ -176,6 +177,41 @@ def approve_registration(
         "user_id": target_user.id,
         "registration_status": "APPROVED"
     }
+
+@router.post("/registrations/bulk-approve", response_model=BulkApproveResponse)
+def bulk_approve_registrations(
+    req: BulkApproveRequest,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+):
+    """Admin-only endpoint to approve multiple pending registrations in batch."""
+    approved_ids = []
+    failed_ids = []
+
+    for uid in req.user_ids:
+        user = db.query(User).filter(User.id == uid).first()
+        if user and user.registration_status == "PENDING":
+            user.registration_status = "APPROVED"
+            approved_ids.append(uid)
+            create_audit_log(
+                db=db,
+                actor_id=admin_user.id,
+                action="USER_REGISTRATION_APPROVED",
+                resource="USER",
+                metadata={"target_user_id": user.id, "email": user.email, "batch": True}
+            )
+        else:
+            failed_ids.append(uid)
+
+    if approved_ids:
+        db.commit()
+
+    return BulkApproveResponse(
+        status="SUCCESS",
+        approved_count=len(approved_ids),
+        approved_ids=approved_ids,
+        failed_ids=failed_ids
+    )
 
 @router.post("/registrations/{user_id}/reject")
 def reject_registration(

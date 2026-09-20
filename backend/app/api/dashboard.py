@@ -1,6 +1,8 @@
 from typing import List, Dict, Any, Optional
+from collections import defaultdict
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
@@ -13,9 +15,16 @@ from backend.app.integrations.department_b import DepartmentBFailureController
 from backend.app.services.schema_assistant import SchemaMappingAssistant
 from backend.app.auth import require_roles
 
+from backend.app.services.cache import cache
+
 router = APIRouter(prefix="/api/dashboard", tags=["Officer Dashboard & Monitoring"])
 
 def _compute_dashboard_metrics(db: Session) -> DashboardMetricsResponse:
+    cache_key = f"dashboard:metrics:{DepartmentBFailureController.simulate_failure}"
+    cached = cache.get(cache_key)
+    if cached:
+        return DashboardMetricsResponse(**cached)
+
     total_apps = db.query(Application).count()
 
     # Check Department B failure simulation state
@@ -26,10 +35,16 @@ def _compute_dashboard_metrics(db: Session) -> DashboardMetricsResponse:
         DepartmentTransaction.status.in_(["FAILED", "RETRYING"])
     ).order_by(DepartmentTransaction.created_at.desc()).limit(10).all()
 
+    # Batch query application numbers for exceptions to prevent N+1 queries
+    app_ids = list({ex.application_id for ex in exceptions_db if ex.application_id})
+    app_map = {}
+    if app_ids:
+        app_rows = db.query(Application.id, Application.application_number).filter(Application.id.in_(app_ids)).all()
+        app_map = {row[0]: row[1] for row in app_rows}
+
     exceptions_list = []
     for ex in exceptions_db:
-        app = db.query(Application).filter(Application.id == ex.application_id).first()
-        app_num = app.application_number if app else "MH-APP-2026-UNKNOWN"
+        app_num = app_map.get(ex.application_id, "MH-APP-2026-UNKNOWN")
         exceptions_list.append(IntegrationExceptionRecord(
             id=ex.id,
             application_id=ex.application_id,
@@ -42,13 +57,24 @@ def _compute_dashboard_metrics(db: Session) -> DashboardMetricsResponse:
             created_at=ex.created_at
         ))
 
-    # Real transaction telemetry per department from database
-    dept_a_txns = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == "DEPT_A").count()
-    dept_a_errs = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == "DEPT_A", DepartmentTransaction.status == "FAILED").count()
+    # Single grouped aggregate query for all department transactions
+    telemetry_rows = (
+        db.query(DepartmentTransaction.department_id, DepartmentTransaction.status, func.count(DepartmentTransaction.id))
+        .group_by(DepartmentTransaction.department_id, DepartmentTransaction.status)
+        .all()
+    )
+    dept_status_counts = defaultdict(int)
+    dept_totals = defaultdict(int)
+    for dept_id, st, cnt in telemetry_rows:
+        dept_status_counts[(dept_id, st)] += cnt
+        dept_totals[dept_id] += cnt
+
+    dept_a_txns = dept_totals["DEPT_A"]
+    dept_a_errs = dept_status_counts[("DEPT_A", "FAILED")]
     dept_a_rate = 100.0 if dept_a_txns == 0 else round(((dept_a_txns - dept_a_errs) / dept_a_txns) * 100, 1)
 
-    dept_b_txns = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == "DEPT_B").count()
-    dept_b_errs = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == "DEPT_B", DepartmentTransaction.status == "FAILED").count()
+    dept_b_txns = dept_totals["DEPT_B"]
+    dept_b_errs = dept_status_counts[("DEPT_B", "FAILED")]
     if is_dept_b_down:
         dept_b_status = "FAILED"
         dept_b_rate = round(min(88.4, ((dept_b_txns - max(1, dept_b_errs)) / max(1, dept_b_txns)) * 100), 1)
@@ -60,12 +86,12 @@ def _compute_dashboard_metrics(db: Session) -> DashboardMetricsResponse:
         dept_b_latency = 185
         dept_b_sync = "Active (Live Sync)"
 
-    dept_c_txns = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == "DEPT_C").count()
-    dept_c_errs = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == "DEPT_C", DepartmentTransaction.status == "FAILED").count()
+    dept_c_txns = dept_totals["DEPT_C"]
+    dept_c_errs = dept_status_counts[("DEPT_C", "FAILED")]
     dept_c_rate = 100.0 if dept_c_txns == 0 else round(((dept_c_txns - dept_c_errs) / dept_c_txns) * 100, 1)
 
-    legacy_txns = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == "LEGACY_01").count()
-    legacy_errs = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == "LEGACY_01", DepartmentTransaction.status == "FAILED").count()
+    legacy_txns = dept_totals["LEGACY_01"]
+    legacy_errs = dept_status_counts[("LEGACY_01", "FAILED")]
     legacy_rate = 100.0 if legacy_txns == 0 else round(((legacy_txns - legacy_errs) / legacy_txns) * 100, 1)
 
     # Department health status list
@@ -120,7 +146,7 @@ def _compute_dashboard_metrics(db: Session) -> DashboardMetricsResponse:
     total_errs = dept_a_errs + dept_b_errs + dept_c_errs + legacy_errs
     overall_success = 100.0 if total_txns == 0 else round(((total_txns - total_errs) / total_txns) * 100, 1)
 
-    return DashboardMetricsResponse(
+    result = DashboardMetricsResponse(
         total_applications=total_apps,
         integration_success_rate=92.1 if is_dept_b_down else overall_success,
         avg_processing_time_days=2.4,
@@ -129,6 +155,8 @@ def _compute_dashboard_metrics(db: Session) -> DashboardMetricsResponse:
         department_health=dept_health,
         recent_exceptions=exceptions_list
     )
+    cache.set(cache_key, result.model_dump(), ttl_seconds=15)
+    return result
 
 @router.get("/metrics", response_model=DashboardMetricsResponse)
 def get_dashboard_metrics(
@@ -205,20 +233,24 @@ def get_recent_transactions(
     db: Session = Depends(get_db)
 ):
     """Returns recent inter-departmental transactions with routing and schema version."""
+    bounded_limit = min(max(1, limit), 100)
     txns = (
         db.query(DepartmentTransaction)
         .order_by(DepartmentTransaction.created_at.desc())
-        .limit(limit)
+        .limit(bounded_limit)
         .all()
     )
-    result = []
-    for t in txns:
-        app = db.query(Application).filter(Application.id == t.application_id).first()
-        app_num = app.application_number if app else "MH-APP-2026-0001"
-        result.append({
+    app_ids = list({t.application_id for t in txns if t.application_id})
+    app_map = {}
+    if app_ids:
+        app_rows = db.query(Application.id, Application.application_number).filter(Application.id.in_(app_ids)).all()
+        app_map = {row[0]: row[1] for row in app_rows}
+
+    return [
+        {
             "id": t.id,
             "application_id": t.application_id,
-            "application_number": app_num,
+            "application_number": app_map.get(t.application_id, "MH-APP-2026-0001"),
             "department_id": t.department_id,
             "source_department": getattr(t, "source_department", "PORTAL") or "PORTAL",
             "destination_department": getattr(t, "destination_department", t.department_id) or t.department_id,
@@ -228,8 +260,9 @@ def get_recent_transactions(
             "retry_count": t.retry_count,
             "error_message": t.error_message,
             "created_at": t.created_at.isoformat()
-        })
-    return result
+        }
+        for t in txns
+    ]
 
 
 @router.get("/analytics")
@@ -242,6 +275,10 @@ def get_governance_analytics(
     Returns application funnel, consent compliance, SLA breach count, throughput,
     district distribution, and per-department success rates.
     """
+    cached = cache.get("dashboard:analytics")
+    if cached:
+        return cached
+
     from backend.app.models.consent import Consent
     from collections import Counter
     from datetime import timedelta
@@ -281,14 +318,24 @@ def get_governance_analytics(
         DepartmentTransaction.created_at >= hour_ago
     ).count()
 
-    # Per-department success rates
+    # Single grouped aggregate query for department success rates
+    dept_stats_rows = (
+        db.query(DepartmentTransaction.department_id, DepartmentTransaction.status, func.count(DepartmentTransaction.id))
+        .filter(DepartmentTransaction.department_id.in_(["DEPT_A", "DEPT_B", "DEPT_C", "LEGACY_01"]))
+        .group_by(DepartmentTransaction.department_id, DepartmentTransaction.status)
+        .all()
+    )
+    dept_counts_map = defaultdict(int)
+    dept_success_map = defaultdict(int)
+    for dept_id, st, cnt in dept_stats_rows:
+        dept_counts_map[dept_id] += cnt
+        if st == "SUCCESS":
+            dept_success_map[dept_id] += cnt
+
     dept_analytics = []
     for dept_id in ["DEPT_A", "DEPT_B", "DEPT_C", "LEGACY_01"]:
-        total_t   = db.query(DepartmentTransaction).filter(DepartmentTransaction.department_id == dept_id).count()
-        success_t = db.query(DepartmentTransaction).filter(
-            DepartmentTransaction.department_id == dept_id,
-            DepartmentTransaction.status == "SUCCESS"
-        ).count()
+        total_t = dept_counts_map[dept_id]
+        success_t = dept_success_map[dept_id]
         rate = round((success_t / max(1, total_t)) * 100, 1)
         dept_analytics.append({
             "department_id":     dept_id,
@@ -308,7 +355,7 @@ def get_governance_analytics(
     total_citizens = db.query(User).filter(User.role == "CITIZEN").count()
     total_staff    = db.query(User).filter(User.role.in_(["OFFICER", "ADMIN", "AUDITOR"])).count()
 
-    return {
+    result = {
         "summary": {
             "total_applications":    total,
             "completed":             completed,
@@ -332,3 +379,5 @@ def get_governance_analytics(
         "platform_health":         "HEALTHY" if sla_breaches == 0 else ("DEGRADED" if sla_breaches <= 2 else "AT_RISK"),
         "timestamp":               datetime.now(timezone.utc).isoformat(),
     }
+    cache.set("dashboard:analytics", result, ttl_seconds=15)
+    return result

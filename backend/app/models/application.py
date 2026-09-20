@@ -11,11 +11,11 @@ class Application(Base):
     application_number = Column(String(64), unique=True, nullable=False, index=True) # e.g. MH-APP-2026-000184
     citizen_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     service_id = Column(String(64), nullable=False, default="employment-support")
-    status = Column(String(50), nullable=False, default="APPLICATION_CREATED") # APPLICATION_CREATED, CONSENT_GRANTED, IDENTITY_VERIFIED, ELIGIBILITY_VERIFIED, APPROVAL_STARTED, ADMIN_APPROVED, AUDITOR_CONFIRMED, COMPLETED, EXCEPTION, REJECTED, REWORK
+    status = Column(String(50), nullable=False, default="APPLICATION_CREATED", index=True) # APPLICATION_CREATED, CONSENT_GRANTED, IDENTITY_VERIFIED, ELIGIBILITY_VERIFIED, APPROVAL_STARTED, ADMIN_APPROVED, AUDITOR_CONFIRMED, COMPLETED, EXCEPTION, REJECTED, REWORK
     current_department = Column(String(50), nullable=False, default="PORTAL") # PORTAL, DEPT_A, DEPT_B, DEPT_C, ADMIN, AUDIT
     citizen_data = Column(JSON, nullable=True) # Stores captured or enriched citizen attributes
     rejection_reason = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=utc_now, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     citizen = relationship("User", foreign_keys=[citizen_id])

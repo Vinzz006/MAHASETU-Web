@@ -16,9 +16,9 @@ class DepartmentTransaction(Base):
     operation = Column(String(100), nullable=False) # verify_identity, verify_eligibility, submit_application, get_status
     request_payload = Column(JSON, nullable=False)
     response_payload = Column(JSON, nullable=True)
-    status = Column(String(50), nullable=False) # SUCCESS, FAILED, RETRYING, RESOLVED
+    status = Column(String(50), nullable=False, index=True) # SUCCESS, FAILED, RETRYING, RESOLVED
     retry_count = Column(Integer, default=0, nullable=False)
     error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=utc_now, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
 
     application = relationship("Application", back_populates="transactions")

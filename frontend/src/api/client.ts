@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = '/api/v1';
 
 export interface UserPersona {
   id: string;
@@ -178,10 +178,15 @@ export interface ConversationDetail {
   messages: ChatMessage[];
 }
 
-function getAuthHeader(): HeadersInit {
+function generateRequestId(): string {
+  return 'req-' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+}
+
+function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('mahasetu_token');
   return {
     'Content-Type': 'application/json',
+    'X-Request-ID': generateRequestId(),
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   };
 }
@@ -1937,6 +1942,43 @@ export const api = {
     const res = await fetch(`${API_BASE}/dashboard/analytics`, { headers: getAuthHeader() });
     if (!res.ok) throw new Error('Failed to load governance analytics');
     return res.json();
+  },
+
+  // Phase 4: Product Enhancements
+  async getMyConsentHistory(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/consents/my-history`, { headers: getAuthHeader() });
+    if (!res.ok) throw new Error('Failed to load consent history');
+    return res.json();
+  },
+
+  async bulkApproveRegistrations(userIds: string[]): Promise<{ status: string; approved_count: number; approved_ids: string[]; failed_ids: string[] }> {
+    const res = await fetch(`${API_BASE}/auth/registrations/bulk-approve`, {
+      method: 'POST',
+      headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_ids: userIds }),
+    });
+    if (!res.ok) throw new Error('Failed to bulk approve registrations');
+    return res.json();
+  },
+
+  async exportApplicationsCsv(status?: string): Promise<Blob> {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    const res = await fetch(`${API_BASE}/export/applications.csv${query}`, { headers: getAuthHeader() });
+    if (!res.ok) throw new Error('Failed to export applications CSV');
+    return res.blob();
+  },
+
+  async exportAuditLogsCsv(action?: string): Promise<Blob> {
+    const query = action ? `?action=${encodeURIComponent(action)}` : '';
+    const res = await fetch(`${API_BASE}/export/audit-logs.csv${query}`, { headers: getAuthHeader() });
+    if (!res.ok) throw new Error('Failed to export audit logs CSV');
+    return res.blob();
+  },
+
+  async downloadReceiptPdf(applicationId: string): Promise<Blob> {
+    const res = await fetch(`${API_BASE}/passport/${applicationId}/receipt.pdf`, { headers: getAuthHeader() });
+    if (!res.ok) throw new Error('Failed to download PDF receipt');
+    return res.blob();
   },
 };
 

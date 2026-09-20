@@ -2,6 +2,13 @@ import os
 import logging
 from typing import List, Dict, Any, Optional
 
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
+
 logger = logging.getLogger("mahasetu.assistant")
 
 def get_gemini_metadata() -> Dict[str, Any]:
@@ -102,10 +109,11 @@ def generate_assistant_response(
 
     # Live Gemini Call via unified google-genai SDK
     try:
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=gemini_api_key)
+        # Live Gemini Client configured with 15s timeout to prevent threadpool starvation
+        client = genai.Client(
+            api_key=gemini_api_key,
+            http_options=types.HttpOptions(timeout=15000)
+        )
 
         # Build multi-turn chat contents adhering strictly to google-genai types
         # Basic prompt-injection hygiene: citizen's raw message is isolated in its own user Content object

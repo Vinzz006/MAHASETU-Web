@@ -1,10 +1,10 @@
 # MAHASETU 🇮🇳
 
-### Government Interoperability & Service Passport Platform
+### Government Interoperability & Verifiable Digital Service Passport Platform
 **Addressing Government of Maharashtra Problem Statement 26129**
 
 > **ONE CITIZEN. ONE CONSENT. ONE APPLICATION ID. MULTIPLE DEPARTMENTS. ONE UNIFIED SERVICE JOURNEY.**  
-> *Existing government systems remain in place. MahaSetu connects them.*
+> *Existing government systems remain in place. MahaSetu securely connects them.*
 
 ---
 
@@ -13,195 +13,199 @@
 Government of Maharashtra **Problem Statement 26129**:
 *System integration and interoperability among government digital platforms, resulting in fragmented service delivery.*
 
-Departments independently maintain portals, registries, workflows, and databases. Because of disparate data formats, citizens must submit identical information repeatedly, navigate multiple portals, and visit physical offices. Officials lack a consolidated view of beneficiaries, applications, approvals, and cross-department outcomes.
+Departments independently maintain distinct portals, databases, registries, and approval pipelines. Because of disparate data formats, citizens must submit identical documentation repeatedly, track multiple disjointed applications, and make physical visits. Administrators lack unified visibility into citizen outcomes, bottlenecks, and cross-departmental SLAs.
 
-**MahaSetu** provides an **interoperability middleware layer** supporting:
-- API-based federated exchange
-- Canonical Data Model transformations
-- DPDP-aligned consent management
-- Universal Service Passport tracking (`MH-APP-2026-XXXXXX`)
-- Event-driven orchestration
-- Reusable legacy adapters (pipe-delimited flat file support)
-- Exception capture with automated retries
-- Real-time officer monitoring & audit telemetry
-- AI Schema Mapping Assistant with human-in-the-loop governance
+**MahaSetu** acts as the secure, federated interoperability middleware layer providing:
+- **Canonical Data Model (CDM) Transformations** for heterogeneous REST APIs and legacy pipe-delimited schemas.
+- **DPDP Act 2023 Compliant Consent Management** with tamper-evident cryptographic hashes.
+- **Universal Service Tracking** with a single permanent identifier (`MH-APP-2026-XXXXXX`).
+- **Verifiable Digital Service Passports** with downloadable PDF receipts and QR public verification.
+- **Observability & Ops Readiness**: Prometheus `/metrics`, Kubernetes probes (`/healthz`, `/readyz`), structured JSON correlation logging (`X-Request-ID`), and disaster recovery backups.
+- **Bilingual Interface**: Full English and Marathi (`मराठी`) localization with WCAG 2.1 AA accessibility.
 
 ---
 
-## ⚡ Quick Start
+## 🏗️ End-to-End Interoperability Architecture
 
-### Option A: Local Development (Zero-Dependency Setup)
+```mermaid
+flowchart TD
+    subgraph Citizen Experience
+        C[Citizen Browser / PWA] -->|1. Applies for Service| GW[MahaSetu API Gateway /api/v1]
+        C -->|2. Authorizes DPDP Consent| CG[Consent Governance Engine]
+    end
 
-**1. Start Backend (FastAPI)**
-```bash
-cd backend
-python -m uvicorn backend.app.main:app --reload --port 8000
+    subgraph Security & Orchestration Layer
+        GW --> MW[Rate Limiting, Idempotency & Logging Middleware]
+        MW --> AC[RBAC & Auth Manager - JWT / Firebase]
+        AC --> ORCH[8-Step Interoperability Orchestrator]
+        ORCH --> CDM[Canonical Data Model Transformer]
+    end
+
+    subgraph Department Integration Mesh
+        CDM -->|Dept A Adapter| D1[(Dept A: UIDAI / Civil Identity)]
+        CDM -->|Dept B Adapter| D2[(Dept B: Socio-Economic Eligibility)]
+        CDM -->|Dept C Adapter| D3[(Dept C: Employment Sanction)]
+        CDM -->|Legacy File Adapter| D4[(Dept D: Legacy Flat-File Registry)]
+    end
+
+    subgraph Trust & Observability
+        ORCH --> AT[(Immutable Merkle Audit Log)]
+        ORCH --> RD[(Redis Cache / In-Memory Fallback)]
+        ORCH --> PROM[Prometheus /metrics & Probes]
+        ORCH --> PASSPORT[Digital Service Passport & PDF Engine]
+    end
+
+    style GW fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff
+    style ORCH fill:#0f172a,stroke:#6366f1,stroke-width:2px,color:#fff
+    style CDM fill:#047857,stroke:#10b981,stroke-width:2px,color:#fff
+    style AT fill:#b91c1c,stroke:#ef4444,stroke-width:2px,color:#fff
 ```
-*The backend boots instantly using SQLite by default with pre-seeded demo personas.*
 
-**2. Start Frontend (React + Vite)**
+---
+
+## ⚡ Quick Start Guide
+
+### Prerequisites
+- Python 3.11+ (Python 3.12 or 3.14 verified)
+- Node.js 20 LTS or 22+
+- Docker & Docker Compose (optional)
+
+### 1. Local Development (Instant Zero-Dependency Boot)
+
 ```bash
+# Clone the repository
+git clone https://github.com/Vinzz006/MAHASETU-Web.git
+cd MAHASETU-Web
+
+# Configure backend environment
+cp .env.example .env
+
+# Set up Python virtual environment
+python -m venv venv
+# Linux / macOS:
+source venv/bin/activate
+# Windows PowerShell:
+.\venv\Scripts\Activate.ps1
+
+# Install backend dependencies
+pip install -r backend/requirements.txt
+
+# Apply database schema migrations
+alembic upgrade head
+
+# Start FastAPI backend (runs on http://127.0.0.1:8000)
+uvicorn backend.app.main:app --reload --port 8000
+```
+
+In a second terminal window:
+```bash
+# Configure and launch frontend
 cd frontend
 npm install
 npm run dev
+# Frontend runs on http://localhost:5173
 ```
-*Access the application at `http://localhost:5173`.*
 
----
-
-### Option B: Docker Compose (Full Stack with PostgreSQL)
+### 2. Docker Compose (Full Stack with PostgreSQL)
 
 ```bash
 docker compose up --build
 ```
-- Frontend: `http://localhost:5173`
-- Backend API & Swagger Docs: `http://localhost:8000/docs`
-- PostgreSQL: Port 5433
+- Frontend UI: `http://localhost:5173`
+- Backend Swagger OpenAPI: `http://localhost:8000/docs`
+- Cloud Health Probes: `http://localhost:8000/healthz` and `http://localhost:8000/readyz`
+- Prometheus Metrics: `http://localhost:8000/metrics`
 
 ---
 
 ## 👥 Demo Personas & Credentials
 
-| Persona | Role | Credentials | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Demo Citizen** | `CITIZEN` | `9999999999` / `mahasetu123` | Apply for schemes, authorize consent, track service journey |
-| **Demo Officer** | `OFFICER` | `8888888888` / `mahasetu123` | Monitor SLAs, manage integration exceptions, audit logs |
-| **Integration Admin**| `SYSTEM_ADMIN`| `7777777777` / `mahasetu123` | Connector telemetry, AI schema mapping approval |
+All test personas are pre-seeded and accessible via 1-click switcher in the navigation bar:
 
-*A 1-click persona switcher is embedded directly into the navbar and login screen.*
-
----
-
-## 🔄 The End-to-End Interoperability Journey
-
-```
-LOGIN (Demo Citizen)
-  ↓
-SELECT SERVICE (Maharashtra Employment & Skill Assistance Scheme)
-  ↓
-CREATE APPLICATION (Pre-populated from master registry)
-  ↓
-UNIVERSAL APPLICATION ID ISSUED (e.g. MH-APP-2026-000184)
-  ↓
-CONSENT AUTHORIZATION (Cryptographic SHA-256 signature)
-  ↓
-DEPARTMENT A (Identity Verification via Modern REST API)
-  ↓
-CANONICAL DATA MODEL TRANSFORMATION (citizen_name ➔ fullName)
-  ↓
-DEPARTMENT B (Eligibility Evaluation via Heterogeneous JSON)
-  ↓
-EVENT DRIVEN NOTIFICATION (ELIGIBILITY_VERIFIED)
-  ↓
-DEPARTMENT C (Scheme Sanction & Benefit Award)
-  ↓
-UNIFIED APPLICATION TRACKER (Live state machine & payloads)
-  ↓
-OFFICER COMMAND CENTER & AUDIT TRAIL
-```
+| Persona | Role | Username / Mobile | Password | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **Demo Citizen** | `CITIZEN` | `9999999999` | `mahasetu123` | Submit applications, grant DPDP consent, view disclosure log, download PDF receipt |
+| **Officer Sharma** | `OFFICER` | `8888888888` | `mahasetu123` | Real-time SLA monitoring, resolve integration exceptions, CSV export |
+| **System Admin** | `SYSTEM_ADMIN` | `7777777777` | `mahasetu123` | AI Schema Mapping approvals, batch citizen registration approval |
+| **Auditor Kulkarni** | `AUDITOR` | `6666666666` | `mahasetu123` | Cryptographic Merkle compliance audits and tamper-proof verification |
+| **Dept A Officer** | `DEPARTMENT_A` | `5555555551` | `mahasetu123` | Identity verification transaction processing |
+| **Dept B Officer** | `DEPARTMENT_B` | `5555555552` | `mahasetu123` | Eligibility assessment and socioeconomic rule evaluation |
+| **Dept C Officer** | `DEPARTMENT_C` | `5555555553` | `mahasetu123` | Final scheme sanctioning and DBT benefit award |
 
 ---
 
-## 💥 Failure Handling & Resilience Demo
+## 🗄️ Database Migrations (Alembic)
 
-MahaSetu incorporates a live resilience toggle:
-1. Click **"Simulate Dept B Failure"** on the floating bottom controller.
-2. Advance an application to **Department B (Eligibility)**.
-3. Observe **2 automated retries** followed by safe transition to the **EXCEPTION** state.
-4. Navigate to the **Officer Dashboard** to view the incident in the **Resilience Queue**.
-5. Toggle failure off and click **"Resolve & Retry"** to resume the workflow without lost state.
+Database schema evolution is strictly tracked and managed with **Alembic**:
 
----
-
-## 🤖 AI Schema Mapping Assistant
-
-Located at `/admin/schema-mapper`:
-- Compares disparate departmental schemas using semantic vector similarity and syntactic proximity.
-- Suggests confidence-ranked field mappings (*e.g., `dob` ➔ `date_of_birth` 99%*).
-- **Strict Governance**: The AI never makes autonomous citizen benefit or sanction decisions; mappings require explicit human administrative approval.
-
----
-
-## 📁 Repository Structure
-
-```text
-mahasetu/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI application entrypoint
-│   │   ├── database.py          # SQLAlchemy PostgreSQL/SQLite engine
-│   │   ├── auth.py              # JWT authentication & RBAC guards
-│   │   ├── models/              # users, applications, consents, workflows, txns, audits
-│   │   ├── schemas/             # Pydantic v2 validation models & Canonical schemas
-│   │   ├── services/            # Transformation, Consent, Workflow, Audit, AI Assistant
-│   │   ├── integrations/        # Dept A (REST), Dept B (JSON), Dept C, Legacy Adapter
-│   │   ├── events/              # Lightweight asynchronous event bus
-│   │   └── api/                 # Auth, Services, Apps, Consents, Workflow, Dashboard, Demo
-│   ├── tests/                   # Pytest suite (transformations, workflows, retries)
-│   ├── Dockerfile
-│   └── requirements.txt
-│
-├── frontend/
-│   ├── src/
-│   │   ├── api/client.ts        # Typed API client
-│   │   ├── context/             # AuthContext & DemoContext
-│   │   ├── components/          # Navbar, Footer, DemoFloatingBar, CanonicalInspector
-│   │   └── pages/
-│   │       ├── citizen/         # Landing, Login, Dashboard, Services, Form, Consent, Tracker
-│   │       ├── admin/           # Officer Dashboard, Integrations Monitor, AI Schema Mapper
-│   │       └── lab/             # Innovation Lab (Exploratory showcase pages, code-split)
-│   ├── Dockerfile
-│   └── package.json
-│
-├── database/
-│   └── seed/seed_data.py        # Seed script for demo accounts & benchmark records
-│
-├── docs/
-│   ├── architecture.md          # Technical architecture & ERD
-│   ├── api.md                   # OpenAPI endpoint reference
-│   └── demo-script.md           # 3-minute hackathon judge walkthrough
-│
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
----
-
-## 🔬 Core Interoperability vs. Innovation Lab (Exploratory Extensions)
-
-To maintain sharp focus on **Problem Statement 26129** (*System integration and interoperability among government digital platforms*), MahaSetu clearly distinguishes its core platform from future-proof research prototypes:
-
-- **Core Interoperability Platform (The Primary Evaluation Surface)**:
-  - Canonical Data Model (CDM) transformer (`Department A`, `B`, `C`, and pipe-delimited legacy adapters).
-  - Cryptographic DPDP consent engine preventing cross-department data leakage.
-  - Universal Application ID (`MH-APP-2026-XXXXXX`) tracking across disparate departmental databases.
-  - Automated retry loop, resilience circuit-breakers, and officer exception queues.
-  - Human-in-the-loop AI Schema Mapping Assistant for bridging novel departmental APIs.
-  - Role-based access control (RBAC) and object-level ownership guards.
-
-- **Innovation Lab (Exploratory Prototypes)**:
-  - Modules such as Drone Telemetry, Bhoomi Geo-Cadastre, Quantum Key Rotation, EV Grid Balancing, etc., demonstrate potential domain-specific downstream consumers.
-  - **Zero Bloat Guarantee**: All lab modules are code-split (`React.lazy`), bundled on-demand, grouped under `/lab/*`, and secured with role dependencies in the backend so they never interfere with core performance.
-
----
-
-## 🧪 Automated Testing
-
-Run backend unit, integration, and security tests:
 ```bash
+# View migration history
+alembic history
+
+# Upgrade to the latest revision
+alembic upgrade head
+
+# Rollback one revision
+alembic downgrade -1
+
+# Create a new auto-generated migration
+alembic revision --autogenerate -m "add_new_feature_table"
+```
+
+---
+
+## 🛡️ Observability & Operations
+
+- **Cloud Probes**:
+  - `GET /healthz`: Kubernetes liveness probe.
+  - `GET /readyz`: Readiness probe verifying database, auth, and AI model connectivity.
+- **Prometheus Metrics**:
+  - `GET /metrics`: Standard RFC Prometheus exposition format tracking request rates, HTTP duration latencies, cache hit/miss ratio, and departmental throughput.
+- **Disaster Recovery Scripts**:
+  - Bash: `backend/scripts/backup_restore.sh {backup|restore <file>|verify <file>}`
+  - PowerShell: `backend\scripts\backup_restore.ps1 -Action backup`
+  - Automated SHA-256 checksum generation and validation for backup integrity.
+- **Structured JSON Logging**: Every request is tagged with an immutable `X-Request-ID` correlation header tracked across all system logs.
+- **Feature Flags**: Evaluated at `GET /api/v1/platform/features` with dynamic runtime overrides.
+
+---
+
+## 🧪 Comprehensive Automated Testing
+
+MahaSetu maintains automated test suites across both backend and frontend:
+
+### Backend Test Suite (Pytest)
+```bash
+# Run all 161+ backend tests
+python -m pytest backend/tests
+
+# Run with verbose output
 python -m pytest backend/tests -v
 ```
 
-The test suite validates:
-- Canonical transformations across all 4 department schemas.
-- Consent guardrails and object-level data ownership preventing unauthorized exchange.
-- Strict authentication (bcrypt verification, token validation, 401/403 RBAC guards).
-- Collision-safe universal application number generation.
-- Automated retries, exception state capture, and recovery.
+### Frontend Test Suite (Vitest & TypeScript)
+```bash
+cd frontend
+
+# Run frontend tests
+npm test -- --run
+
+# Compile TypeScript and build production bundle
+npm run build
+```
 
 ---
 
-## 🏆 Final Hackathon Positioning
+## 🔒 Security Posture & Compliance
 
-> *"MahaSetu is an interoperability infrastructure layer that makes fragmented government systems behave like one connected service ecosystem, without the cost or delay of replacing them."*
+- **DPDP Act 2023 Compliant**: Explicit citizen consent required prior to any cross-departmental data transfer; citizens can inspect all historical disclosures via `/citizen/consent-history`.
+- **Cryptographic Merkle Proofs**: SHA-256 audit logs guarantee non-repudiation for administrative actions.
+- **Role-Based Access Control (RBAC)**: Enforced via cryptographic JWTs and FastAPI dependency guards.
+- **OWASP API Security**: Sliding-window rate limiting, 24-hour idempotency caching, and unified error envelopes.
+
+---
+
+## 📄 License & Attribution
+
+Developed for the **Government of Maharashtra Hackathon (Problem Statement 26129)**.  
+Licensed under the [MIT License](LICENSE).
