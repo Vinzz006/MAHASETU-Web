@@ -21,7 +21,11 @@ from backend.app.api.services import router as services_router
 from backend.app.api.applications import router as applications_router
 from backend.app.api.consent import router as consent_router
 from backend.app.api.departments import router as departments_router
+from backend.app.api.interoperability import router as interoperability_router
+from backend.app.api.mdm import router as mdm_router
+from backend.app.api.sso import router as sso_router
 from backend.app.api.workflow import router as workflow_router
+
 from backend.app.api.dashboard import router as dashboard_router
 from backend.app.api.demo import router as demo_router
 from backend.app.api.grievances import router as grievances_router
@@ -244,6 +248,10 @@ _mount_on_v1(assistant_router)
 _mount_on_v1(audit_logs_router)
 _mount_on_v1(vc_router)
 _mount_on_v1(export_router)
+_mount_on_v1(interoperability_router)
+_mount_on_v1(mdm_router)
+_mount_on_v1(sso_router)
+
 
 # Mount Innovation Lab Routers
 if settings.ENABLE_INNOVATION_LAB:
@@ -397,8 +405,9 @@ def platform_stats():
             "districts_covered": 36,
             "platform_version": "v1.0.0 Production Core",
             "problem_statement": "26129",
-            "compliance": ["DPDP Act 2023", "W3C VC Standard", "RFC 6962 Merkle", "NIST PQC"],
+            "compliance": ["DPDP-Aligned Consent Management", "SHA-256 Tamper-Evident Audit Trail", "OpenID Connect Ready", "OpenAPI 3.0 Standard"],
             "timestamp": datetime.now(timezone.utc).isoformat(),
+
         }
         cache.set("platform:stats", result, ttl_seconds=20)
         return result

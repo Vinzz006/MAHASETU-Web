@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from backend.app.models.application import Application
-from backend.app.models.workflow import WorkflowStep
+from backend.app.models.workflow import WorkflowStep, WorkflowDefinition
 from backend.app.models.transaction import DepartmentTransaction
 from backend.app.models.consent import Consent
+
 from backend.app.services.consent import ConsentManager
 from backend.app.services.audit import create_audit_log
 from backend.app.events.publisher import publish_event
@@ -64,6 +65,47 @@ WORKFLOW_PIPELINE = [
     }
 ]
 
+DEFAULT_WORKFLOW_DEFINITIONS = [
+    {
+        "id": "WF-DEF-EMPLOYMENT",
+        "service_id": "employment-support",
+        "name": "Maharashtra Employment Support Scheme Workflow",
+        "version": "1.0.0",
+        "description": "Standard 8-step cross-departmental verification, sanction, admin sign-off, and audit workflow.",
+        "definition_json": {
+            "initial_step": "APPLICATION_CREATED",
+            "steps": WORKFLOW_PIPELINE,
+            "transitions": {
+                "APPLICATION_CREATED": {"SUCCESS": "CONSENT_GRANTED"},
+                "CONSENT_GRANTED": {"SUCCESS": "IDENTITY_VERIFICATION"},
+                "IDENTITY_VERIFICATION": {"SUCCESS": "ELIGIBILITY_VERIFICATION"},
+                "ELIGIBILITY_VERIFICATION": {"SUCCESS": "DEPARTMENT_APPROVAL", "FAILURE": "EXCEPTION"},
+                "DEPARTMENT_APPROVAL": {"SUCCESS": "ADMIN_REVIEW"},
+                "ADMIN_REVIEW": {"APPROVE": "AUDITOR_REVIEW", "REWORK": "REWORK"},
+                "AUDITOR_REVIEW": {"CONFIRM": "APPLICATION_COMPLETED"},
+                "APPLICATION_COMPLETED": {}
+            }
+        }
+    },
+    {
+        "id": "WF-DEF-CASTE-CERT",
+        "service_id": "caste-certificate",
+        "name": "Caste & Domicile Verification Workflow",
+        "version": "1.0.0",
+        "description": "Cross-verification with civil identity and legacy land records.",
+        "definition_json": {
+            "initial_step": "APPLICATION_CREATED",
+            "steps": [
+                {"step_name": "APPLICATION_CREATED", "department_id": "PORTAL", "title": "Application Initiated", "description": "Application registered in MahaSetu"},
+                {"step_name": "CONSENT_GRANTED", "department_id": "PORTAL", "title": "Citizen Consent Authorized", "description": "Consent for land and identity lookup"},
+                {"step_name": "IDENTITY_VERIFICATION", "department_id": "DEPT_A", "title": "Identity Verification", "description": "Verified via modern REST API"},
+                {"step_name": "LEGACY_ARCHIVE_VERIFICATION", "department_id": "LEGACY_01", "title": "Legacy Land Archive Verification", "description": "Verified via 25-yr mainframe archive"},
+                {"step_name": "APPLICATION_COMPLETED", "department_id": "PORTAL", "title": "Certificate Issued", "description": "Digital certificate issued"}
+            ]
+        }
+    }
+]
+
 class WorkflowEngine:
     """
     Configurable Interoperability Workflow Engine.
@@ -72,9 +114,35 @@ class WorkflowEngine:
     """
 
     @classmethod
+    def seed_workflow_definitions_if_empty(cls, db: Session):
+        """Ensures default workflow definitions exist in the database."""
+        if db.query(WorkflowDefinition).count() == 0:
+            for d in DEFAULT_WORKFLOW_DEFINITIONS:
+                defn = WorkflowDefinition(
+                    id=d["id"],
+                    service_id=d["service_id"],
+                    name=d["name"],
+                    version=d["version"],
+                    description=d["description"],
+                    definition_json=d["definition_json"],
+                    is_active=True
+                )
+                db.add(defn)
+            db.commit()
+
+    @classmethod
     def initialize_workflow(cls, db: Session, application_id: str):
-        """Initializes the workflow steps pipeline for a new application."""
-        for step_def in WORKFLOW_PIPELINE:
+        """Initializes the workflow steps pipeline for a new application based on its service definition."""
+        cls.seed_workflow_definitions_if_empty(db)
+        app = db.query(Application).filter(Application.id == application_id).first()
+        
+        steps_def = WORKFLOW_PIPELINE
+        if app and app.service_id:
+            defn = db.query(WorkflowDefinition).filter(WorkflowDefinition.service_id == app.service_id).first()
+            if defn and isinstance(defn.definition_json, dict) and "steps" in defn.definition_json:
+                steps_def = defn.definition_json["steps"]
+
+        for step_def in steps_def:
             step = WorkflowStep(
                 application_id=application_id,
                 step_name=step_def["step_name"],
@@ -82,7 +150,7 @@ class WorkflowEngine:
                 status="COMPLETED" if step_def["step_name"] == "APPLICATION_CREATED" else "PENDING",
                 started_at=datetime.now(timezone.utc).replace(tzinfo=None) if step_def["step_name"] == "APPLICATION_CREATED" else None,
                 completed_at=datetime.now(timezone.utc).replace(tzinfo=None) if step_def["step_name"] == "APPLICATION_CREATED" else None,
-                details={"title": step_def["title"], "description": step_def["description"]}
+                details={"title": step_def.get("title", step_def["step_name"]), "description": step_def.get("description", "")}
             )
             db.add(step)
         db.commit()
@@ -92,7 +160,14 @@ class WorkflowEngine:
         steps = db.query(WorkflowStep).filter(
             WorkflowStep.application_id == application_id
         ).all()
-        order_map = {p["step_name"]: idx for idx, p in enumerate(WORKFLOW_PIPELINE)}
+        app = db.query(Application).filter(Application.id == application_id).first()
+        order_map = {}
+        if app and app.service_id:
+            defn = db.query(WorkflowDefinition).filter(WorkflowDefinition.service_id == app.service_id).first()
+            if defn and isinstance(defn.definition_json, dict) and "steps" in defn.definition_json:
+                order_map = {p["step_name"]: idx for idx, p in enumerate(defn.definition_json["steps"])}
+        if not order_map:
+            order_map = {p["step_name"]: idx for idx, p in enumerate(WORKFLOW_PIPELINE)}
         return sorted(steps, key=lambda s: order_map.get(s.step_name, 999))
 
     @classmethod
@@ -105,17 +180,25 @@ class WorkflowEngine:
         if not app:
             raise HTTPException(status_code=404, detail="Application not found")
 
-        # Get all steps ordered as in WORKFLOW_PIPELINE
+        # Determine step order from definition or default pipeline
+        order_list = WORKFLOW_PIPELINE
+        if app.service_id:
+            defn = db.query(WorkflowDefinition).filter(WorkflowDefinition.service_id == app.service_id).first()
+            if defn and isinstance(defn.definition_json, dict) and "steps" in defn.definition_json:
+                order_list = defn.definition_json["steps"]
+
+        # Get all steps ordered as in workflow definition
         steps = db.query(WorkflowStep).filter(WorkflowStep.application_id == application_id).all()
         step_map = {s.step_name: s for s in steps}
 
         # Determine current incomplete step
         current_step = None
-        for p in WORKFLOW_PIPELINE:
+        for p in order_list:
             s = step_map.get(p["step_name"])
             if s and s.status in ["PENDING", "FAILED", "RETRYING"]:
                 current_step = s
                 break
+
 
         if not current_step:
             return {
@@ -416,7 +499,27 @@ class WorkflowEngine:
             create_audit_log(db, actor_id, "SERVICE_PASSPORT_FINALIZED", "APPLICATION", app.id)
             return {"step": step_name, "status": "COMPLETED"}
 
-        return {"step": step_name, "status": "UNKNOWN"}
+        elif "LEGACY" in step_name:
+            ConsentManager.validate_consent(db, app.id)
+            connector = get_connector("LEGACY_01")
+            res = connector.verify_identity(canonical_model)
+            current_step.status = "COMPLETED"
+            current_step.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            current_step.details = res
+            app.status = "LEGACY_VERIFIED"
+            db.commit()
+            create_audit_log(db, actor_id, "EXECUTE_LEGACY_STEP", "LEGACY_01", app.id)
+            return {"step": step_name, "status": "COMPLETED", "result": res}
+
+        else:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            current_step.status = "COMPLETED"
+            current_step.completed_at = now
+            current_step.timestamp = now
+            current_step.verifier_id = actor_id
+            db.commit()
+            return {"step": step_name, "status": "COMPLETED"}
+
 
     @classmethod
     def admin_review(
@@ -630,3 +733,122 @@ class WorkflowEngine:
         create_audit_log(db, actor_id, "INTEGRATION_RETRY_INITIATED", "WORKFLOW", app.id)
         # Advance the step
         return cls.advance_step(db, application_id, actor_id)
+
+    @classmethod
+    def cancel_workflow(
+        cls,
+        db: Session,
+        application_id: str,
+        reason: str = "Citizen cancelled application",
+        actor_id: str = "CITIZEN"
+    ) -> Dict[str, Any]:
+        """Cancels an active application workflow."""
+        app = db.query(Application).filter(
+            (Application.id == application_id) | (Application.application_number == application_id)
+        ).first()
+        if not app:
+            raise HTTPException(status_code=404, detail="Application not found")
+
+        app.status = "CANCELLED"
+        app.rejection_reason = reason
+        db.commit()
+
+        publish_event("APPLICATION_CANCELLED", app.application_number, "PORTAL", {"reason": reason})
+        create_audit_log(db, actor_id, "APPLICATION_CANCELLED", "APPLICATION", app.id, {"reason": reason})
+        return {"status": "SUCCESS", "application_status": "CANCELLED", "reason": reason}
+
+    @classmethod
+    def escalate_workflow(
+        cls,
+        db: Session,
+        application_id: str,
+        reason: str = "SLA breach threshold reached",
+        actor_id: str = "OFFICER"
+    ) -> Dict[str, Any]:
+        """Escalates an application to the State Administrator priority queue."""
+        app = db.query(Application).filter(
+            (Application.id == application_id) | (Application.application_number == application_id)
+        ).first()
+        if not app:
+            raise HTTPException(status_code=404, detail="Application not found")
+
+        app.status = "ESCALATED"
+        db.commit()
+
+        publish_event("WORKFLOW_ESCALATED", app.application_number, "ADMIN", {"reason": reason})
+        create_audit_log(db, actor_id, "WORKFLOW_ESCALATED", "WORKFLOW", app.id, {"reason": reason})
+        return {"status": "SUCCESS", "application_status": "ESCALATED", "reason": reason}
+
+    @classmethod
+    def list_definitions(cls, db: Session) -> List[Dict[str, Any]]:
+        cls.seed_workflow_definitions_if_empty(db)
+        definitions = db.query(WorkflowDefinition).filter(WorkflowDefinition.is_active == True).all()
+        return [
+            {
+                "id": d.id,
+                "service_id": d.service_id,
+                "name": d.name,
+                "version": d.version,
+                "description": d.description,
+                "is_active": d.is_active,
+                "total_steps": len(d.definition_json.get("steps", [])) if isinstance(d.definition_json, dict) else 0,
+                "definition_json": d.definition_json,
+                "created_at": d.created_at.isoformat() if d.created_at else None
+            }
+            for d in definitions
+        ]
+
+    @classmethod
+    def get_definition(cls, db: Session, definition_id_or_service: str) -> Dict[str, Any]:
+        cls.seed_workflow_definitions_if_empty(db)
+        d = db.query(WorkflowDefinition).filter(
+            (WorkflowDefinition.id == definition_id_or_service) |
+            (WorkflowDefinition.service_id == definition_id_or_service)
+        ).first()
+        if not d:
+            raise HTTPException(status_code=404, detail=f"Workflow definition '{definition_id_or_service}' not found")
+
+        return {
+            "id": d.id,
+            "service_id": d.service_id,
+            "name": d.name,
+            "version": d.version,
+            "description": d.description,
+            "is_active": d.is_active,
+            "definition_json": d.definition_json,
+            "created_at": d.created_at.isoformat() if d.created_at else None
+        }
+
+    @classmethod
+    def save_definition(cls, db: Session, data: Dict[str, Any], actor_id: str = "ADMIN") -> Dict[str, Any]:
+        cls.seed_workflow_definitions_if_empty(db)
+        def_id = data.get("id") or f"WF-DEF-{data.get('service_id', 'SCHEME').upper()}"
+        d = db.query(WorkflowDefinition).filter(WorkflowDefinition.id == def_id).first()
+        if not d:
+            d = WorkflowDefinition(
+                id=def_id,
+                service_id=data.get("service_id", "custom-scheme"),
+                name=data.get("name", "Custom Scheme Workflow"),
+                version=data.get("version", "1.0.0"),
+                description=data.get("description"),
+                definition_json=data.get("definition_json", {}),
+                is_active=data.get("is_active", True)
+            )
+            db.add(d)
+        else:
+            for k, v in data.items():
+                if hasattr(d, k) and k != "id":
+                    setattr(d, k, v)
+            d.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        db.commit()
+        db.refresh(d)
+
+        create_audit_log(db, actor_id, "WORKFLOW_DEFINITION_SAVED", "WORKFLOW", metadata={"definition_id": d.id, "service_id": d.service_id})
+        return {
+            "status": "SUCCESS",
+            "id": d.id,
+            "service_id": d.service_id,
+            "name": d.name
+        }
+
