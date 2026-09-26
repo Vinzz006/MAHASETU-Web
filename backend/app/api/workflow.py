@@ -1,3 +1,5 @@
+from typing import Any
+
 from backend.app.auth import get_current_user, require_roles
 from backend.app.database import get_db
 from backend.app.models.application import Application
@@ -187,3 +189,61 @@ def retry_failed_step(
     actor = current_user.name if current_user else "OFFICER"
     res = WorkflowEngine.retry_exception(db, app.id, actor_id=actor)
     return res
+
+
+@router.get("/definitions/all")
+def list_workflow_definitions(db: Session = Depends(get_db)):
+    """Returns all declarative workflow definitions configured across schemes."""
+    return WorkflowEngine.list_definitions(db)
+
+
+@router.get("/definitions/{definition_id}")
+def get_workflow_definition(definition_id: str, db: Session = Depends(get_db)):
+    """Fetches full state-machine transition specifications for a workflow definition."""
+    return WorkflowEngine.get_definition(db, definition_id)
+
+
+@router.post(
+    "/definitions", dependencies=[Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))]
+)
+def save_workflow_definition(
+    req: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Registers or reconfigures a declarative workflow state machine."""
+    actor = current_user.name if current_user else "ADMIN"
+    return WorkflowEngine.save_definition(db, req, actor_id=actor)
+
+
+@router.post("/{application_id}/cancel")
+def cancel_application_workflow(
+    application_id: str,
+    req: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Cancels an in-progress workflow application."""
+    reason = (req or {}).get("reason", "Cancelled by applicant")
+    actor = current_user.name if current_user else "CITIZEN"
+    return WorkflowEngine.cancel_workflow(
+        db, application_id, reason=reason, actor_id=actor
+    )
+
+
+@router.post(
+    "/{application_id}/escalate",
+    dependencies=[Depends(require_roles(["OFFICER", "ADMIN", "SYSTEM_ADMIN"]))],
+)
+def escalate_application_workflow(
+    application_id: str,
+    req: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Escalates an application due to SLA breach or exceptional delay."""
+    reason = (req or {}).get("reason", "SLA breach threshold reached")
+    actor = current_user.name if current_user else "OFFICER"
+    return WorkflowEngine.escalate_workflow(
+        db, application_id, reason=reason, actor_id=actor
+    )
