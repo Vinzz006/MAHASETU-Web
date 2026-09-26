@@ -1,28 +1,29 @@
-import random
-from typing import List, Optional
 from datetime import datetime, timezone
-from pydantic import BaseModel
+
+from backend.app.auth import get_current_user, require_roles
+from backend.app.database import get_db
+from backend.app.events.publisher import publish_event
+from backend.app.models.application import Application
+from backend.app.models.grievance import Grievance
+from backend.app.models.user import User
+from backend.app.services.audit import create_audit_log
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.app.database import get_db
-from backend.app.models.grievance import Grievance
-from backend.app.models.application import Application
-from backend.app.models.user import User
-from backend.app.auth import get_current_user, require_roles
-from backend.app.services.audit import create_audit_log
-from backend.app.events.publisher import publish_event
-
 router = APIRouter(prefix="/api/grievances", tags=["Consolidated Grievance Redressal"])
+
 
 class GrievanceCreate(BaseModel):
     application_id: str
     department_id: str = "HUB"
-    category: str # IDENTITY_MISMATCH, ELIGIBILITY_DISCREPANCY, SANCTION_DELAY, TECHNICAL_EXCEPTION
+    category: str  # IDENTITY_MISMATCH, ELIGIBILITY_DISCREPANCY, SANCTION_DELAY, TECHNICAL_EXCEPTION
     description: str
+
 
 class GrievanceResolve(BaseModel):
     resolution_notes: str
+
 
 class GrievanceResponse(BaseModel):
     id: str
@@ -35,19 +36,25 @@ class GrievanceResponse(BaseModel):
     category: str
     description: str
     status: str
-    resolution_notes: Optional[str] = None
+    resolution_notes: str | None = None
     created_at: datetime
-    resolved_at: Optional[datetime] = None
+    resolved_at: datetime | None = None
+
 
 @router.post("", response_model=GrievanceResponse)
 def create_grievance(
     req: GrievanceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    app = db.query(Application).filter(
-        (Application.id == req.application_id) | (Application.application_number == req.application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == req.application_id)
+            | (Application.application_number == req.application_id)
+        )
+        .first()
+    )
 
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
@@ -65,20 +72,29 @@ def create_grievance(
         department_id=req.department_id,
         category=req.category,
         description=req.description,
-        status="OPEN"
+        status="OPEN",
     )
     db.add(grievance)
     db.commit()
     db.refresh(grievance)
 
-    publish_event("GRIEVANCE_RAISED", app.application_number, req.department_id, {"ticket": ticket_no})
+    publish_event(
+        "GRIEVANCE_RAISED",
+        app.application_number,
+        req.department_id,
+        {"ticket": ticket_no},
+    )
     create_audit_log(
         db=db,
         actor_id=citizen_id,
         action="GRIEVANCE_RAISED",
         resource="GRIEVANCE",
         application_id=app.id,
-        metadata={"ticket_number": ticket_no, "category": req.category, "department": req.department_id}
+        metadata={
+            "ticket_number": ticket_no,
+            "category": req.category,
+            "department": req.department_id,
+        },
     )
 
     return GrievanceResponse(
@@ -94,16 +110,17 @@ def create_grievance(
         status=grievance.status,
         resolution_notes=grievance.resolution_notes,
         created_at=grievance.created_at,
-        resolved_at=grievance.resolved_at
+        resolved_at=grievance.resolved_at,
     )
 
-@router.get("", response_model=List[GrievanceResponse])
+
+@router.get("", response_model=list[GrievanceResponse])
 def list_grievances(
-    status: Optional[str] = None,
-    application_id: Optional[str] = None,
-    department_id: Optional[str] = None,
+    status: str | None = None,
+    application_id: str | None = None,
+    department_id: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     query = db.query(Grievance)
 
@@ -123,7 +140,9 @@ def list_grievances(
             id=g.id,
             ticket_number=g.ticket_number,
             application_id=g.application_id,
-            application_number=g.application.application_number if g.application else "UNKNOWN",
+            application_number=(
+                g.application.application_number if g.application else "UNKNOWN"
+            ),
             citizen_id=g.citizen_id,
             citizen_name=g.citizen.name if g.citizen else "Citizen",
             department_id=g.department_id,
@@ -132,17 +151,18 @@ def list_grievances(
             status=g.status,
             resolution_notes=g.resolution_notes,
             created_at=g.created_at,
-            resolved_at=g.resolved_at
+            resolved_at=g.resolved_at,
         )
         for g in items
     ]
+
 
 @router.post("/{grievance_id}/resolve", response_model=GrievanceResponse)
 def resolve_grievance(
     grievance_id: str,
     req: GrievanceResolve,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(["OFFICER", "SYSTEM_ADMIN"]))
+    current_user: User = Depends(require_roles(["OFFICER", "SYSTEM_ADMIN"])),
 ):
     grievance = db.query(Grievance).filter(Grievance.id == grievance_id).first()
     if not grievance:
@@ -155,14 +175,22 @@ def resolve_grievance(
     db.refresh(grievance)
 
     actor = current_user.name if current_user else "OFFICER"
-    publish_event("GRIEVANCE_RESOLVED", grievance.application.application_number, grievance.department_id, {"ticket": grievance.ticket_number})
+    publish_event(
+        "GRIEVANCE_RESOLVED",
+        grievance.application.application_number,
+        grievance.department_id,
+        {"ticket": grievance.ticket_number},
+    )
     create_audit_log(
         db=db,
         actor_id=actor,
         action="GRIEVANCE_RESOLVED",
         resource="GRIEVANCE",
         application_id=grievance.application_id,
-        metadata={"ticket_number": grievance.ticket_number, "resolution": req.resolution_notes}
+        metadata={
+            "ticket_number": grievance.ticket_number,
+            "resolution": req.resolution_notes,
+        },
     )
 
     return GrievanceResponse(
@@ -178,5 +206,5 @@ def resolve_grievance(
         status=grievance.status,
         resolution_notes=grievance.resolution_notes,
         created_at=grievance.created_at,
-        resolved_at=grievance.resolved_at
+        resolved_at=grievance.resolved_at,
     )

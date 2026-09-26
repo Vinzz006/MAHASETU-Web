@@ -1,9 +1,9 @@
-import time
-import uuid
 import json
 import logging
+import time
+import uuid
 from contextvars import ContextVar
-from typing import Optional
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -12,8 +12,10 @@ from starlette.responses import Response
 request_id_ctx: ContextVar[str] = ContextVar("request_id_ctx", default="")
 user_id_ctx: ContextVar[str] = ContextVar("user_id_ctx", default="")
 
+
 class JSONLogFormatter(logging.Formatter):
     """Outputs log records formatted as single-line JSON objects."""
+
     def format(self, record: logging.LogRecord) -> str:
         log_obj = {
             "timestamp": self.formatTime(record, self.datefmt),
@@ -27,6 +29,7 @@ class JSONLogFormatter(logging.Formatter):
             log_obj["exception"] = self.formatException(record.exc_info)
         return json.dumps(log_obj)
 
+
 def setup_structured_logging():
     """Configures the root logger with JSONLogFormatter."""
     root_logger = logging.getLogger()
@@ -37,8 +40,10 @@ def setup_structured_logging():
         root_logger.handlers = [handler]
         root_logger.setLevel(logging.INFO)
 
+
 class RequestCorrelationMiddleware(BaseHTTPMiddleware):
     """Propagates or generates X-Request-ID and logs structured request timings."""
+
     async def dispatch(self, request: Request, call_next) -> Response:
         # Get existing or generate new request ID
         req_id = request.headers.get("X-Request-ID") or f"req-{uuid.uuid4().hex[:12]}"
@@ -59,28 +64,46 @@ class RequestCorrelationMiddleware(BaseHTTPMiddleware):
                 user_id_ctx.set(user_id)
 
             # Skip spamming logs for health check polls
-            if request.url.path not in ("/healthz", "/readyz", "/api/health", "/metrics"):
+            if request.url.path not in (
+                "/healthz",
+                "/readyz",
+                "/api/health",
+                "/metrics",
+            ):
                 logging.getLogger("mahasetu.access").info(
                     f"{request.method} {request.url.path} -> {response.status_code} ({duration_ms}ms)",
-                    extra={"request_id": req_id, "user_id": user_id, "status_code": response.status_code, "duration_ms": duration_ms}
+                    extra={
+                        "request_id": req_id,
+                        "user_id": user_id,
+                        "status_code": response.status_code,
+                        "duration_ms": duration_ms,
+                    },
                 )
 
             # Record Prometheus metrics
             try:
                 from backend.app.services.metrics import metrics_service
+
                 duration_seconds = time.perf_counter() - start_time
-                metrics_service.record_request(request.method, request.url.path, response.status_code, duration_seconds)
-            except Exception:
-                pass
+                metrics_service.record_request(
+                    request.method,
+                    request.url.path,
+                    response.status_code,
+                    duration_seconds,
+                )
+            except (ImportError, AttributeError, RuntimeError):
+                logging.getLogger("mahasetu.metrics").debug(
+                    "Unable to record request metrics",
+                    exc_info=True,
+                )
 
             return response
-        except Exception as exc:
+        except Exception:
             duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-            logging.getLogger("mahasetu.error").error(
-                f"Unhandled error in {request.method} {request.url.path}: {str(exc)}",
-                exc_info=True,
-                extra={"request_id": req_id, "duration_ms": duration_ms}
+            logging.getLogger("mahasetu.error").exception(
+                f"Unhandled error in {request.method} {request.url.path}",
+                extra={"request_id": req_id, "duration_ms": duration_ms},
             )
-            raise exc
+            raise
         finally:
             request_id_ctx.reset(token)

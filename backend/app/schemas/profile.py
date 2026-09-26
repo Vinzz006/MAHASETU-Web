@@ -1,107 +1,110 @@
-from typing import Optional, Dict, Any
 from datetime import datetime
+
 from pydantic import BaseModel
+
 
 class ProfileUpdateRequest(BaseModel):
     # Personal
-    legal_name: Optional[str] = None
-    date_of_birth: Optional[str] = None # YYYY-MM-DD
-    gender: Optional[str] = None
-    marital_status: Optional[str] = None
-    community_caste: Optional[str] = None
+    legal_name: str | None = None
+    date_of_birth: str | None = None  # YYYY-MM-DD
+    gender: str | None = None
+    marital_status: str | None = None
+    community_caste: str | None = None
 
     # Address
-    state: Optional[str] = None
-    district: Optional[str] = None
-    city: Optional[str] = None
-    division: Optional[str] = None
-    taluk: Optional[str] = None
-    zone: Optional[str] = None
-    full_address: Optional[str] = None
-    country: Optional[str] = None
+    state: str | None = None
+    district: str | None = None
+    city: str | None = None
+    division: str | None = None
+    taluk: str | None = None
+    zone: str | None = None
+    full_address: str | None = None
+    country: str | None = None
 
     # Identity
-    aadhaar_number: Optional[str] = None # Will be hashed and masked to last 4
-    pan_number: Optional[str] = None
-    passport_status: Optional[str] = None
+    aadhaar_number: str | None = None  # Will be hashed and masked to last 4
+    pan_number: str | None = None
+    passport_status: str | None = None
 
     # Family
-    father_name: Optional[str] = None
-    mother_name: Optional[str] = None
-    spouse_name: Optional[str] = None
-    guardian_name: Optional[str] = None
+    father_name: str | None = None
+    mother_name: str | None = None
+    spouse_name: str | None = None
+    guardian_name: str | None = None
 
     # Contact
-    phone: Optional[str] = None
-    telephone: Optional[str] = None
-    email: Optional[str] = None
+    phone: str | None = None
+    telephone: str | None = None
+    email: str | None = None
 
     # Education
-    educational_qualification: Optional[str] = None
+    educational_qualification: str | None = None
 
     # Banking
-    bank_name: Optional[str] = None
-    account_number: Optional[str] = None
-    ifsc: Optional[str] = None
+    bank_name: str | None = None
+    account_number: str | None = None
+    ifsc: str | None = None
+
 
 class ProfileResponse(BaseModel):
     id: str
     user_id: str
 
     # Personal
-    legal_name: Optional[str] = None
-    date_of_birth: Optional[str] = None
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    marital_status: Optional[str] = None
-    community_caste: Optional[str] = None
+    legal_name: str | None = None
+    date_of_birth: str | None = None
+    age: int | None = None
+    gender: str | None = None
+    marital_status: str | None = None
+    community_caste: str | None = None
 
     # Address
-    state: Optional[str] = None
-    district: Optional[str] = None
-    city: Optional[str] = None
-    division: Optional[str] = None
-    taluk: Optional[str] = None
-    zone: Optional[str] = None
-    full_address: Optional[str] = None
-    country: Optional[str] = None
+    state: str | None = None
+    district: str | None = None
+    city: str | None = None
+    division: str | None = None
+    taluk: str | None = None
+    zone: str | None = None
+    full_address: str | None = None
+    country: str | None = None
 
     # Identity
-    aadhaar_last_four: Optional[str] = None
-    pan_number: Optional[str] = None
-    passport_status: Optional[str] = None
+    aadhaar_last_four: str | None = None
+    pan_number: str | None = None
+    passport_status: str | None = None
 
     # Family
-    father_name: Optional[str] = None
-    mother_name: Optional[str] = None
-    spouse_name: Optional[str] = None
-    guardian_name: Optional[str] = None
+    father_name: str | None = None
+    mother_name: str | None = None
+    spouse_name: str | None = None
+    guardian_name: str | None = None
 
     # Contact
-    phone: Optional[str] = None
-    telephone: Optional[str] = None
-    email: Optional[str] = None
+    phone: str | None = None
+    telephone: str | None = None
+    email: str | None = None
 
     # Education
-    educational_qualification: Optional[str] = None
+    educational_qualification: str | None = None
 
     # Banking
-    bank_name: Optional[str] = None
-    account_number_masked: Optional[str] = None
-    ifsc: Optional[str] = None
+    bank_name: str | None = None
+    account_number_masked: str | None = None
+    ifsc: str | None = None
 
     # Document Reference & Signed URL
-    passport_document_url: Optional[str] = None
-    passport_download_url: Optional[str] = None
+    passport_document_url: str | None = None
+    passport_download_url: str | None = None
 
     created_at: datetime
     updated_at: datetime
 
+
 class CitizenSummaryResponse(BaseModel):
     id: str
     name: str
-    email: Optional[str] = None
-    mobile: Optional[str] = None
+    email: str | None = None
+    mobile: str | None = None
     role: str
     registration_status: str
     profile_completion_percentage: int

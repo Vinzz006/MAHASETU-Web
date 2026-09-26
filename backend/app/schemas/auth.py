@@ -1,10 +1,12 @@
-from typing import Optional
 from datetime import datetime
+
 from pydantic import BaseModel
 
+
 class LoginRequest(BaseModel):
-    username: str # mobile or email
+    username: str  # mobile or email
     password: str
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -12,8 +14,9 @@ class TokenResponse(BaseModel):
     user_id: str
     name: str
     role: str
-    department_id: Optional[str] = None
+    department_id: str | None = None
     registration_status: str = "APPROVED"
+
 
 class UserResponse(BaseModel):
     id: str
@@ -21,14 +24,17 @@ class UserResponse(BaseModel):
     mobile: str
     email: str
     role: str
-    department_id: Optional[str] = None
+    department_id: str | None = None
     registration_status: str = "APPROVED"
 
-from pydantic import BaseModel, field_validator
+
 import re
 
+from pydantic import BaseModel, field_validator
+
+
 class RegisterRequest(BaseModel):
-    firebase_token: Optional[str] = None
+    firebase_token: str | None = None
     name: str
     mobile: str
     email: str
@@ -45,6 +51,7 @@ class RegisterRequest(BaseModel):
             raise ValueError("Password must contain at least one numeric digit.")
         return v
 
+
 class RegistrationResponse(BaseModel):
     id: str
     name: str
@@ -53,6 +60,7 @@ class RegistrationResponse(BaseModel):
     role: str
     registration_status: str
     message: str
+
 
 class PendingRegistrationItem(BaseModel):
     id: str
@@ -63,11 +71,14 @@ class PendingRegistrationItem(BaseModel):
     registration_status: str
     created_at: datetime
 
+
 class RejectRegistrationRequest(BaseModel):
     reason: str
 
+
 class BulkApproveRequest(BaseModel):
     user_ids: list[str]
+
 
 class BulkApproveResponse(BaseModel):
     status: str

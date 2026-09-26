@@ -1,10 +1,11 @@
-import time
 import logging
-from typing import Optional
-from fastapi import BackgroundTasks
+import time
+
 from backend.app.config import get_settings
+from fastapi import BackgroundTasks
 
 logger = logging.getLogger("mahasetu.sms")
+
 
 def send_sms_sync(to_phone: str, message_body: str, max_retries: int = 3) -> bool:
     """
@@ -32,34 +33,43 @@ def send_sms_sync(to_phone: str, message_body: str, max_retries: int = 3) -> boo
     for attempt in range(1, max_retries + 1):
         try:
             from twilio.rest import Client
+
             client = Client(account_sid, auth_token)
             formatted_phone = to_phone
             if not formatted_phone.startswith("+"):
                 formatted_phone = f"+91{formatted_phone}"
 
             message = client.messages.create(
-                body=message_body,
-                from_=from_number,
-                to=formatted_phone
+                body=message_body, from_=from_number, to=formatted_phone
             )
-            logger.info(f"SMS dispatched via Twilio to {formatted_phone}: SID {message.sid}")
+            logger.info(
+                f"SMS dispatched via Twilio to {formatted_phone}: SID {message.sid}"
+            )
             return True
         except Exception as exc:
-            logger.warning(f"Twilio SMS attempt {attempt}/{max_retries} failed for {to_phone}: {exc}")
+            logger.warning(
+                f"Twilio SMS attempt {attempt}/{max_retries} failed for {to_phone}: {exc}"
+            )
             if attempt == max_retries:
                 if demo_mode:
                     print(f"[DEMO SMS FALLBACK] To: {to_phone} | Msg: {message_body}")
                     return True
                 logger.error(f"Exhausted retries sending SMS to {to_phone}")
-                raise exc
-            time.sleep(0.5 * (2 ** (attempt - 1))) # Exponential backoff: 0.5s, 1s, etc.
+                raise
+            time.sleep(
+                0.5 * (2 ** (attempt - 1))
+            )  # Exponential backoff: 0.5s, 1s, etc.
     return False
+
 
 def send_sms(to_phone: str, message_body: str) -> bool:
     """Backward-compatible synchronous send wrapper."""
     return send_sms_sync(to_phone, message_body)
 
-def dispatch_background_sms(background_tasks: Optional[BackgroundTasks], to_phone: str, message_body: str):
+
+def dispatch_background_sms(
+    background_tasks: BackgroundTasks | None, to_phone: str, message_body: str
+):
     """Enqueues SMS dispatch into FastAPI BackgroundTasks to keep request path sub-50ms."""
     if background_tasks:
         background_tasks.add_task(send_sms_sync, to_phone, message_body)

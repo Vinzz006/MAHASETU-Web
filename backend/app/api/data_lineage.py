@@ -1,20 +1,24 @@
 import hashlib
-from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
 from backend.app.models.application import Application
 from backend.app.models.consent import Consent
-from backend.app.models.transaction import DepartmentTransaction
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/lineage", tags=["Data Lineage & Provenance"])
 
+
 @router.get("/{application_id}")
 def get_application_data_lineage(application_id: str, db: Session = Depends(get_db)):
-    app = db.query(Application).filter(
-        (Application.id == application_id) | (Application.application_number == application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == application_id)
+            | (Application.application_number == application_id)
+        )
+        .first()
+    )
 
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
@@ -33,7 +37,9 @@ def get_application_data_lineage(application_id: str, db: Session = Depends(get_
             "validation_method": "UIDAI SHA-256 Biometric Token Match",
             "confidence_score": 0.994,
             "status": "VERIFIED_AUTHENTIC",
-            "provenance_hash": hashlib.sha256(f"name:{c_data.get('name')}".encode()).hexdigest()[:16]
+            "provenance_hash": hashlib.sha256(
+                f"name:{c_data.get('name')}".encode()
+            ).hexdigest()[:16],
         },
         {
             "field_name": "Date of Birth",
@@ -44,7 +50,9 @@ def get_application_data_lineage(application_id: str, db: Session = Depends(get_
             "validation_method": "Birth Registry Cross-Verification",
             "confidence_score": 0.999,
             "status": "VERIFIED_AUTHENTIC",
-            "provenance_hash": hashlib.sha256(f"dob:{c_data.get('dob')}".encode()).hexdigest()[:16]
+            "provenance_hash": hashlib.sha256(
+                f"dob:{c_data.get('dob')}".encode()
+            ).hexdigest()[:16],
         },
         {
             "field_name": "Residence District",
@@ -55,7 +63,9 @@ def get_application_data_lineage(application_id: str, db: Session = Depends(get_
             "validation_method": "Maharashtra State Domicile Check",
             "confidence_score": 0.985,
             "status": "VERIFIED_AUTHENTIC",
-            "provenance_hash": hashlib.sha256(f"district:{c_data.get('district')}".encode()).hexdigest()[:16]
+            "provenance_hash": hashlib.sha256(
+                f"district:{c_data.get('district')}".encode()
+            ).hexdigest()[:16],
         },
         {
             "field_name": "Annual Household Income",
@@ -66,7 +76,9 @@ def get_application_data_lineage(application_id: str, db: Session = Depends(get_
             "validation_method": "Tahsildar Income Certificate S-Tier Matching",
             "confidence_score": 0.978,
             "status": "EVALUATED_ELIGIBLE",
-            "provenance_hash": hashlib.sha256(f"income:{c_data.get('annual_income')}".encode()).hexdigest()[:16]
+            "provenance_hash": hashlib.sha256(
+                f"income:{c_data.get('annual_income')}".encode()
+            ).hexdigest()[:16],
         },
         {
             "field_name": "Employment Category",
@@ -77,7 +89,9 @@ def get_application_data_lineage(application_id: str, db: Session = Depends(get_
             "validation_method": "Exchange Live Roster Match",
             "confidence_score": 0.991,
             "status": "EVALUATED_ELIGIBLE",
-            "provenance_hash": hashlib.sha256(f"emp:{c_data.get('employment_status')}".encode()).hexdigest()[:16]
+            "provenance_hash": hashlib.sha256(
+                f"emp:{c_data.get('employment_status')}".encode()
+            ).hexdigest()[:16],
         },
         {
             "field_name": "DPDP Cryptographic Consent",
@@ -88,8 +102,12 @@ def get_application_data_lineage(application_id: str, db: Session = Depends(get_
             "validation_method": "Cryptographic Hash Authorization (DPDP-2023)",
             "confidence_score": 1.0,
             "status": "AUTHORIZED",
-            "provenance_hash": consent.consent_hash[:16] if (consent and consent.consent_hash) else "0x4f820c7e2b10"
-        }
+            "provenance_hash": (
+                consent.consent_hash[:16]
+                if (consent and consent.consent_hash)
+                else "0x4f820c7e2b10"
+            ),
+        },
     ]
 
     return {
@@ -102,6 +120,6 @@ def get_application_data_lineage(application_id: str, db: Session = Depends(get_
             "total_attributes_federated": len(lineage_items),
             "manual_documents_bypassed": 6,
             "data_tampering_risk": "ZERO_PROVABLE",
-            "zero_storage_architecture": True
-        }
+            "zero_storage_architecture": True,
+        },
     }

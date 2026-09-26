@@ -1,22 +1,33 @@
 import uuid
-from datetime import datetime, date
-from typing import Optional
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from datetime import datetime, timezone
+
 from backend.app.database import Base, utc_now
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import relationship
+
 
 class ResidentProfile(Base):
     __tablename__ = "resident_profiles"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
 
     # 1. Personal Group
     legal_name = Column(String(255), nullable=True)
-    date_of_birth = Column(String(32), nullable=True) # YYYY-MM-DD
-    gender = Column(String(32), nullable=True) # MALE, FEMALE, TRANSGENDER, OTHER
-    marital_status = Column(String(32), nullable=True) # SINGLE, MARRIED, DIVORCED, WIDOWED
-    community_caste = Column(String(64), nullable=True) # GENERAL, OBC, SC, ST, EWS, VJNT
+    date_of_birth = Column(String(32), nullable=True)  # YYYY-MM-DD
+    gender = Column(String(32), nullable=True)  # MALE, FEMALE, TRANSGENDER, OTHER
+    marital_status = Column(
+        String(32), nullable=True
+    )  # SINGLE, MARRIED, DIVORCED, WIDOWED
+    community_caste = Column(
+        String(64), nullable=True
+    )  # GENERAL, OBC, SC, ST, EWS, VJNT
 
     # 2. Address Group
     state = Column(String(64), nullable=True, default="Maharashtra")
@@ -32,7 +43,9 @@ class ResidentProfile(Base):
     aadhaar_hash = Column(String(128), nullable=True)
     aadhaar_last_four = Column(String(4), nullable=True)
     pan_number = Column(String(20), nullable=True)
-    passport_status = Column(String(50), nullable=True, default="NOT_ISSUED") # NOT_ISSUED, APPLIED, ACTIVE, EXPIRED
+    passport_status = Column(
+        String(50), nullable=True, default="NOT_ISSUED"
+    )  # NOT_ISSUED, APPLIED, ACTIVE, EXPIRED
 
     # 4. Family Group
     father_name = Column(String(255), nullable=True)
@@ -46,7 +59,9 @@ class ResidentProfile(Base):
     email = Column(String(255), nullable=True)
 
     # 6. Education Group
-    educational_qualification = Column(String(128), nullable=True) # SSC, HSC, GRADUATE, POST_GRADUATE, DIPLOMA, DOCTORATE
+    educational_qualification = Column(
+        String(128), nullable=True
+    )  # SSC, HSC, GRADUATE, POST_GRADUATE, DIPLOMA, DOCTORATE
 
     # 7. Banking Group (Account number masked at rest)
     bank_name = Column(String(128), nullable=True)
@@ -62,14 +77,22 @@ class ResidentProfile(Base):
     user = relationship("User", foreign_keys=[user_id])
 
     @property
-    def age(self) -> Optional[int]:
+    def age(self) -> int | None:
         """Dynamically computes age from date_of_birth to prevent redundant or stale storage."""
         if not self.date_of_birth:
             return None
         try:
             # Handle YYYY-MM-DD
-            dob = datetime.strptime(self.date_of_birth[:10], "%Y-%m-%d").date()
-            today = date.today()
-            return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-        except Exception:
+            dob = (
+                datetime.strptime(self.date_of_birth[:10], "%Y-%m-%d")
+                .replace(tzinfo=timezone.utc)
+                .date()
+            )
+            today = datetime.now(timezone.utc).date()
+            return (
+                today.year
+                - dob.year
+                - ((today.month, today.day) < (dob.month, dob.day))
+            )
+        except (TypeError, ValueError):
             return None

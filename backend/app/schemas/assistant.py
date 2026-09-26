@@ -1,10 +1,12 @@
 from datetime import datetime
-from typing import List, Optional
+
 from pydantic import BaseModel, ConfigDict
+
 
 class ChatRequest(BaseModel):
     message: str
-    conversation_id: Optional[str] = None
+    conversation_id: str | None = None
+
 
 class ChatMessageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -14,9 +16,11 @@ class ChatMessageResponse(BaseModel):
     content: str
     timestamp: datetime
 
+
 class ChatResponse(BaseModel):
     conversation_id: str
     message: ChatMessageResponse
+
 
 class ConversationSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -27,6 +31,7 @@ class ConversationSummary(BaseModel):
     updated_at: datetime
     message_count: int
 
+
 class ConversationDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -34,4 +39,4 @@ class ConversationDetail(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
-    messages: List[ChatMessageResponse]
+    messages: list[ChatMessageResponse]

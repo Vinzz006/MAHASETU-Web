@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime
-from sqlalchemy import Column, String, DateTime
+
 from backend.app.database import Base, utc_now
+from sqlalchemy import Column, DateTime, String
+
 
 class User(Base):
     __tablename__ = "users"
@@ -11,8 +12,14 @@ class User(Base):
     name = Column(String(255), nullable=False)
     mobile = Column(String(32), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    role = Column(String(50), nullable=False, default="CITIZEN") # CITIZEN, DEPARTMENT_A, DEPARTMENT_B, DEPARTMENT_C, AUDITOR, ADMIN
-    department_id = Column(String(50), nullable=True) # e.g. DEPT_A, DEPT_B, DEPT_C, AUDIT
-    registration_status = Column(String(50), nullable=False, default="PENDING") # PENDING, APPROVED, REJECTED
+    role = Column(
+        String(50), nullable=False, default="CITIZEN"
+    )  # CITIZEN, DEPARTMENT_A, DEPARTMENT_B, DEPARTMENT_C, AUDITOR, ADMIN
+    department_id = Column(
+        String(50), nullable=True
+    )  # e.g. DEPT_A, DEPT_B, DEPT_C, AUDIT
+    registration_status = Column(
+        String(50), nullable=False, default="PENDING"
+    )  # PENDING, APPROVED, REJECTED
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)

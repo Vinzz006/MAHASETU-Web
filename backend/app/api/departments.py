@@ -1,18 +1,17 @@
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
+from typing import Any
 
 from backend.app.database import get_db
-from backend.app.integrations import get_connector, get_all_connectors
+from backend.app.integrations import get_connector
 from backend.app.services.transformation import DataTransformationEngine
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/integrations", tags=["Department Integrations"])
 
+
 @router.post("/{department}/verify")
 def verify_department_data(
-    department: str,
-    payload: Dict[str, Any],
-    db: Session = Depends(get_db)
+    department: str, payload: dict[str, Any], db: Session = Depends(get_db)
 ):
     try:
         connector = get_connector(department.upper())
@@ -29,11 +28,10 @@ def verify_department_data(
 
     return res
 
+
 @router.post("/{department}/submit")
 def submit_department_data(
-    department: str,
-    payload: Dict[str, Any],
-    db: Session = Depends(get_db)
+    department: str, payload: dict[str, Any], db: Session = Depends(get_db)
 ):
     try:
         connector = get_connector(department.upper())
@@ -42,6 +40,7 @@ def submit_department_data(
 
     res = connector.submit_application(payload)
     return res
+
 
 @router.get("/{department}/status")
 def get_department_status(department: str):
@@ -52,8 +51,9 @@ def get_department_status(department: str):
 
     return connector.get_status("system-probe")
 
+
 @router.post("/transform/trace")
-def trace_transformation(req: Dict[str, Any]):
+def trace_transformation(req: dict[str, Any]):
     """
     Simulates and traces canonical transformations between any two departments.
     Essential for interactive demonstration of interoperability mechanics.
@@ -69,7 +69,7 @@ def trace_transformation(req: Dict[str, Any]):
                 "mobile_no": "9999999999",
                 "dob": "1998-05-12",
                 "district": "Pune",
-                "annual_income": 180000
+                "annual_income": 180000,
             }
         elif src == "LEGACY_01":
             raw_input = "CIT001|Demo Citizen|Pune|MH"
@@ -80,7 +80,7 @@ def trace_transformation(req: Dict[str, Any]):
                 "date_of_birth": "1998-05-12",
                 "residence_district": "Pune",
                 "income_bracket": "BELOW_2L",
-                "employment_category": "JOB_SEEKER"
+                "employment_category": "JOB_SEEKER",
             }
 
     trace = DataTransformationEngine.trace_transformation(src, tgt, raw_input)

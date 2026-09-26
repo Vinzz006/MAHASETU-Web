@@ -1,6 +1,3 @@
-import hashlib
-import time
-from typing import List, Dict, Any
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/disbursal", tags=["DBT Treasury Disbursal Ledger"])
@@ -19,7 +16,7 @@ DBT_TRANSACTIONS = [
         "payment_rail": "RBI_EKUBER_APB",
         "status": "SETTLED_TO_ACCOUNT",
         "settled_at": "2026-09-02T17:40:00Z",
-        "treasury_batch_token": "0x7f482a10c9e2b104928"
+        "treasury_batch_token": "0x7f482a10c9e2b104928",
     },
     {
         "id": "TXN-DBT-2026-002",
@@ -34,7 +31,7 @@ DBT_TRANSACTIONS = [
         "payment_rail": "RBI_EKUBER_APB",
         "status": "SETTLED_TO_ACCOUNT",
         "settled_at": "2026-09-02T18:15:00Z",
-        "treasury_batch_token": "0x9c310b871fa2840918a"
+        "treasury_batch_token": "0x9c310b871fa2840918a",
     },
     {
         "id": "TXN-DBT-2026-003",
@@ -49,14 +46,19 @@ DBT_TRANSACTIONS = [
         "payment_rail": "PFMS_TREASURY_TRANSFER",
         "status": "PROCESSING_RBI_CLEARANCE",
         "settled_at": None,
-        "treasury_batch_token": "0x12a8f9024bc1098e721"
-    }
+        "treasury_batch_token": "0x12a8f9024bc1098e721",
+    },
 ]
+
 
 @router.get("/transactions")
 def get_dbt_transactions():
-    total_disbursed = sum(t["amount_inr"] for t in DBT_TRANSACTIONS if t["status"] == "SETTLED_TO_ACCOUNT")
-    settled_count = sum(1 for t in DBT_TRANSACTIONS if t["status"] == "SETTLED_TO_ACCOUNT")
+    total_disbursed = sum(
+        t["amount_inr"] for t in DBT_TRANSACTIONS if t["status"] == "SETTLED_TO_ACCOUNT"
+    )
+    settled_count = sum(
+        1 for t in DBT_TRANSACTIONS if t["status"] == "SETTLED_TO_ACCOUNT"
+    )
 
     return {
         "summary": {
@@ -64,7 +66,7 @@ def get_dbt_transactions():
             "settled_count": settled_count,
             "total_disbursed_inr": total_disbursed,
             "payment_rail": "Reserve Bank of India (RBI) e-Kuber & APBS",
-            "reconciliation_status": "100% BALANCED (Zero Transit Leakage)"
+            "reconciliation_status": "100% BALANCED (Zero Transit Leakage)",
         },
-        "transactions": DBT_TRANSACTIONS
+        "transactions": DBT_TRANSACTIONS,
     }

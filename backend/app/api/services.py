@@ -1,12 +1,19 @@
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Response
-from sqlalchemy.orm import Session
+import logging
 
+from backend.app.auth import require_roles
 from backend.app.database import get_db
 from backend.app.models.service import Service
-from backend.app.schemas.application import ServiceDefinition, ServiceCreate, ServiceUpdate
-from backend.app.auth import require_roles
+from backend.app.schemas.application import (
+    ServiceCreate,
+    ServiceDefinition,
+    ServiceUpdate,
+)
 from backend.app.services.cache import cache
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
+logger = logging.getLogger("mahasetu.services")
 
 router = APIRouter(prefix="/api/services", tags=["Government Services"])
 
@@ -19,9 +26,13 @@ INITIAL_SERVICES = [
         "department": "Skill Development, Employment & Entrepreneurship Department",
         "description": "Unified financial stipend and vocational placement assistance. Cross-verifies identity via Dept A, evaluates eligibility through Dept B, and sanctions benefits through Dept C.",
         "description_mr": "एकात्मिक आर्थिक विद्यावेतन व कौशल्य सहाय्य योजना. विभागांमार्फत थेट पडताळणी.",
-        "participating_departments": ["DEPT_A (Identity)", "DEPT_B (Eligibility)", "DEPT_C (Employment)"],
+        "participating_departments": [
+            "DEPT_A (Identity)",
+            "DEPT_B (Eligibility)",
+            "DEPT_C (Employment)",
+        ],
         "sla_days": 3,
-        "is_active": True
+        "is_active": True,
     },
     {
         "id": "farmer-dbt",
@@ -30,9 +41,13 @@ INITIAL_SERVICES = [
         "department": "Agriculture & Rural Development Department",
         "description": "Direct Benefit Transfer for certified agrarian households and micro-irrigation subsidies across 36 districts.",
         "description_mr": "थेट लाभ वितरण आणि सूक्ष्म सिंचन अनुदान योजना.",
-        "participating_departments": ["Agriculture Dept", "Land Records (Legacy)", "Finance Dept"],
+        "participating_departments": [
+            "Agriculture Dept",
+            "Land Records (Legacy)",
+            "Finance Dept",
+        ],
         "sla_days": 7,
-        "is_active": True
+        "is_active": True,
     },
     {
         "id": "urban-housing",
@@ -41,9 +56,13 @@ INITIAL_SERVICES = [
         "department": "Housing & Urban Development Department",
         "description": "Interest subsidy and capital assistance for economically weaker sections (EWS) and low-income groups.",
         "description_mr": "आर्थिकदृष्ट्या दुर्बल घटकांसाठी व्याज अनुदान व घरकुल योजना.",
-        "participating_departments": ["Urban Development", "Municipal Corporations", "Revenue Dept"],
+        "participating_departments": [
+            "Urban Development",
+            "Municipal Corporations",
+            "Revenue Dept",
+        ],
         "sla_days": 14,
-        "is_active": True
+        "is_active": True,
     },
     {
         "id": "smart-ration",
@@ -52,11 +71,16 @@ INITIAL_SERVICES = [
         "department": "Food, Civil Supplies and Consumer Protection",
         "description": "One Nation One Ration Card interoperability integration with State Food Grain Allocation registry.",
         "description_mr": "एक देश एक शिधापत्रिका आंतरकार्यक्षमता प्रणाली.",
-        "participating_departments": ["Civil Supplies", "Legacy Civil Registry", "PDS Network"],
+        "participating_departments": [
+            "Civil Supplies",
+            "Legacy Civil Registry",
+            "PDS Network",
+        ],
         "sla_days": 5,
-        "is_active": True
-    }
+        "is_active": True,
+    },
 ]
+
 
 def ensure_initial_services(db: Session):
     if db.query(Service).count() == 0:
@@ -65,15 +89,17 @@ def ensure_initial_services(db: Session):
             db.add(s)
         db.commit()
 
+
 def get_service_name(service_id: str) -> str:
     from backend.app.database import SessionLocal
+
     db = SessionLocal()
     try:
         s = db.query(Service).filter(Service.id == service_id).first()
         if s:
             return s.name
-    except Exception:
-        pass
+    except SQLAlchemyError as exc:
+        logger.debug("Database query error in get_service_name: %s", exc)
     finally:
         db.close()
     for s in INITIAL_SERVICES:
@@ -81,11 +107,10 @@ def get_service_name(service_id: str) -> str:
             return s["name"]
     return "Unknown Service"
 
-@router.get("", response_model=List[ServiceDefinition])
+
+@router.get("", response_model=list[ServiceDefinition])
 def get_services(
-    response: Response,
-    include_inactive: bool = False,
-    db: Session = Depends(get_db)
+    response: Response, include_inactive: bool = False, db: Session = Depends(get_db)
 ):
     """Returns the catalog of government services participating in MahaSetu with Cache-Control headers."""
     response.headers["Cache-Control"] = "public, max-age=120"
@@ -114,7 +139,7 @@ def get_service_stats(response: Response, db: Session = Depends(get_db)):
     services = db.query(Service).filter(Service.is_active == True).all()
 
     # Department count (unique departments)
-    departments = set(s.department for s in services if s.department)
+    departments = {s.department for s in services if s.department}
 
     # SLA stats
     sla_values = [s.sla_days for s in services if s.sla_days]
@@ -130,7 +155,11 @@ def get_service_stats(response: Response, db: Session = Depends(get_db)):
         "participating_departments": list(departments),
         "categories_count": 4,
         "platform": "MahaSetu Interoperability Layer",
-        "compliance": ["DPDP Act 2023", "Maharashtra IT Policy 2023", "W3C VC Standard"],
+        "compliance": [
+            "DPDP Act 2023",
+            "Maharashtra IT Policy 2023",
+            "W3C VC Standard",
+        ],
     }
     cache.set("services:stats", result, ttl_seconds=60)
     return result
@@ -149,9 +178,9 @@ def get_service_categories(db: Session = Depends(get_db)):
     # Map service IDs to friendly categories
     CATEGORY_MAP = {
         "employment-support": "Employment & Skills",
-        "farmer-dbt":         "Agriculture & Rural",
-        "urban-housing":      "Housing & Urban",
-        "smart-ration":       "Food & Civil Supplies",
+        "farmer-dbt": "Agriculture & Rural",
+        "urban-housing": "Housing & Urban",
+        "smart-ration": "Food & Civil Supplies",
     }
     DEFAULT_CATEGORY = "Welfare & Social"
 
@@ -160,14 +189,16 @@ def get_service_categories(db: Session = Depends(get_db)):
         cat = CATEGORY_MAP.get(svc.id, DEFAULT_CATEGORY)
         if cat not in categories:
             categories[cat] = []
-        categories[cat].append({
-            "id": svc.id,
-            "name": svc.name,
-            "name_mr": svc.name_mr,
-            "sla_days": svc.sla_days,
-            "department": svc.department,
-            "is_active": svc.is_active,
-        })
+        categories[cat].append(
+            {
+                "id": svc.id,
+                "name": svc.name,
+                "name_mr": svc.name_mr,
+                "sla_days": svc.sla_days,
+                "department": svc.department,
+                "is_active": svc.is_active,
+            }
+        )
 
     return {
         "categories": [
@@ -176,7 +207,6 @@ def get_service_categories(db: Session = Depends(get_db)):
         ],
         "total": sum(len(s) for s in categories.values()),
     }
-
 
 
 @router.get("/{service_id}", response_model=ServiceDefinition)
@@ -191,16 +221,19 @@ def get_service_by_id(service_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Service not found")
     return s
 
+
 @router.post("", response_model=ServiceDefinition, status_code=status.HTTP_201_CREATED)
 def create_service(
     payload: ServiceCreate,
     db: Session = Depends(get_db),
-    _admin = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+    _admin=Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"])),
 ):
     """Admin-only: Creates a new government service in the catalogue."""
     existing = db.query(Service).filter(Service.id == payload.id).first()
     if existing:
-        raise HTTPException(status_code=400, detail=f"Service with ID '{payload.id}' already exists")
+        raise HTTPException(
+            status_code=400, detail=f"Service with ID '{payload.id}' already exists"
+        )
 
     new_svc = Service(
         id=payload.id,
@@ -211,19 +244,20 @@ def create_service(
         description_mr=payload.description_mr,
         participating_departments=payload.participating_departments,
         sla_days=payload.sla_days,
-        is_active=payload.is_active
+        is_active=payload.is_active,
     )
     db.add(new_svc)
     db.commit()
     db.refresh(new_svc)
     return new_svc
 
+
 @router.put("/{service_id}", response_model=ServiceDefinition)
 def update_service(
     service_id: str,
     payload: ServiceUpdate,
     db: Session = Depends(get_db),
-    _admin = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+    _admin=Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"])),
 ):
     """Admin-only: Updates an existing government service definition."""
     svc = db.query(Service).filter(Service.id == service_id).first()
@@ -238,11 +272,12 @@ def update_service(
     db.refresh(svc)
     return svc
 
+
 @router.delete("/{service_id}")
 def delete_service(
     service_id: str,
     db: Session = Depends(get_db),
-    _admin = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+    _admin=Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"])),
 ):
     """Admin-only: Removes a government service from the catalogue."""
     svc = db.query(Service).filter(Service.id == service_id).first()
@@ -251,4 +286,7 @@ def delete_service(
 
     db.delete(svc)
     db.commit()
-    return {"status": "SUCCESS", "message": f"Service '{service_id}' successfully deleted"}
+    return {
+        "status": "SUCCESS",
+        "message": f"Service '{service_id}' successfully deleted",
+    }

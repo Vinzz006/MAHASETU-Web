@@ -1,10 +1,14 @@
-from backend.app.events.publisher import publish_event, subscribe_event, get_recent_events
-from backend.app.events.handlers import register_default_handlers, ACTIVE_NOTIFICATIONS
+from backend.app.events.handlers import ACTIVE_NOTIFICATIONS, register_default_handlers
+from backend.app.events.publisher import (
+    get_recent_events,
+    publish_event,
+    subscribe_event,
+)
 
 __all__ = [
-    "publish_event",
-    "subscribe_event",
+    "ACTIVE_NOTIFICATIONS",
     "get_recent_events",
+    "publish_event",
     "register_default_handlers",
-    "ACTIVE_NOTIFICATIONS"
+    "subscribe_event",
 ]

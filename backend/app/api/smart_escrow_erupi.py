@@ -1,11 +1,13 @@
 import hashlib
 import random
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter
+from datetime import datetime, timedelta, timezone
 
-router = APIRouter(prefix="/api/escrow", tags=["MahaKosh — Programmable e-RUPI Smart Escrow"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/escrow", tags=["MahaKosh — Programmable e-RUPI Smart Escrow"]
+)
 
 ACTIVE_VOUCHERS = [
     {
@@ -17,7 +19,7 @@ ACTIVE_VOUCHERS = [
         "merchant_mcc_whitelist": ["5169", "5261"],
         "status": "MINTED_AVAILABLE",
         "expires_at": (datetime.now(timezone.utc) + timedelta(days=90)).isoformat(),
-        "cryptographic_voucher_hash": "0x8fa1b930d4e56c718290ab45fc123490"
+        "cryptographic_voucher_hash": "0x8fa1b930d4e56c718290ab45fc123490",
     },
     {
         "voucher_id": "ERUPI-MH-EDU-2026-102",
@@ -28,9 +30,10 @@ ACTIVE_VOUCHERS = [
         "merchant_mcc_whitelist": ["5942", "5732"],
         "status": "REDEEMED_MERCHANT_SETTLED",
         "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
-        "cryptographic_voucher_hash": "0x23ab90ef45c12890cd45671234890123"
-    }
+        "cryptographic_voucher_hash": "0x23ab90ef45c12890cd45671234890123",
+    },
 ]
+
 
 class MintVoucherRequest(BaseModel):
     beneficiary_name: str = "Sunita Jadhav"
@@ -38,11 +41,13 @@ class MintVoucherRequest(BaseModel):
     amount_inr: float = 5000.0
     purpose_category: str = "MATERNAL_NUTRITION_SUPPLEMENTS"
 
+
 class RedeemVoucherRequest(BaseModel):
     voucher_id: str = "ERUPI-MH-AGRI-2026-101"
     merchant_id: str = "MERCHANT-PCOOP-BARAMATI-09"
     merchant_mcc: str = "5169"
     otp_code: str = "849201"
+
 
 @router.get("/active-vouchers")
 def get_active_escrow_vouchers():
@@ -54,8 +59,9 @@ def get_active_escrow_vouchers():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_active_vouchers": len(ACTIVE_VOUCHERS),
         "total_escrow_committed_inr": sum(v["amount_inr"] for v in ACTIVE_VOUCHERS),
-        "vouchers": ACTIVE_VOUCHERS
+        "vouchers": ACTIVE_VOUCHERS,
     }
+
 
 @router.post("/mint-voucher")
 def mint_programmable_voucher(req: MintVoucherRequest):
@@ -65,7 +71,9 @@ def mint_programmable_voucher(req: MintVoucherRequest):
     now_iso = datetime.now(timezone.utc).isoformat()
     expires_iso = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
     v_id = f"ERUPI-MH-{random.randint(1000, 9999)}"
-    v_hash = hashlib.sha256(f"{v_id}:{req.aadhaar_last_four}:{req.amount_inr}:{now_iso}".encode()).hexdigest()
+    v_hash = hashlib.sha256(
+        f"{v_id}:{req.aadhaar_last_four}:{req.amount_inr}:{now_iso}".encode()
+    ).hexdigest()
 
     new_voucher = {
         "voucher_id": v_id,
@@ -76,7 +84,7 @@ def mint_programmable_voucher(req: MintVoucherRequest):
         "merchant_mcc_whitelist": ["5169", "5261", "5411"],
         "status": "MINTED_AVAILABLE",
         "expires_at": expires_iso,
-        "cryptographic_voucher_hash": f"0x{v_hash[:32]}"
+        "cryptographic_voucher_hash": f"0x{v_hash[:32]}",
     }
     ACTIVE_VOUCHERS.insert(0, new_voucher)
 
@@ -85,8 +93,9 @@ def mint_programmable_voucher(req: MintVoucherRequest):
         "voucher": new_voucher,
         "smart_contract_lock": "LOCKED_TO_MERCHANT_MCC_AND_BENEFICIARY_AADHAAR",
         "non_fungible_condition": "NON_TRANSFERABLE / ZERO CASH CASHOUT",
-        "timestamp": now_iso
+        "timestamp": now_iso,
     }
+
 
 @router.post("/redeem-voucher")
 def redeem_escrow_voucher(req: RedeemVoucherRequest):
@@ -94,7 +103,9 @@ def redeem_escrow_voucher(req: RedeemVoucherRequest):
     Executes merchant terminal verification, checking MCC code compliance and burning voucher token.
     """
     now_iso = datetime.now(timezone.utc).isoformat()
-    v = next((item for item in ACTIVE_VOUCHERS if item["voucher_id"] == req.voucher_id), None)
+    v = next(
+        (item for item in ACTIVE_VOUCHERS if item["voucher_id"] == req.voucher_id), None
+    )
     if not v:
         v = ACTIVE_VOUCHERS[0]
 
@@ -109,5 +120,5 @@ def redeem_escrow_voucher(req: RedeemVoucherRequest):
         "amount_credited_inr": v["amount_inr"],
         "settlement_rail": "NPCI e-RUPI / RBI Digital Rupee Wholesale Gateway",
         "npci_receipt_urn": f"urn:npci:erupi:tx:{redemption_receipt}",
-        "timestamp": now_iso
+        "timestamp": now_iso,
     }

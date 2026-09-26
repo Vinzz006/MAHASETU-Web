@@ -1,10 +1,7 @@
-import hashlib
-import json
-from typing import Optional
+from backend.app.services.cache import cache
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
-from backend.app.services.cache import cache
+from starlette.responses import JSONResponse, Response
 
 IDEMPOTENT_PATHS = {
     "/api/v1/applications",
@@ -15,12 +12,14 @@ IDEMPOTENT_PATHS = {
     "/api/workflow/action",
 }
 
+
 class IdempotencyMiddleware(BaseHTTPMiddleware):
     """
     Ensures safe state-changing operations across flaky connections.
     If an 'Idempotency-Key' header is supplied, duplicates within 24 hours
     are served directly from cache without re-executing transactions or creating duplicate audit entries.
     """
+
     async def dispatch(self, request: Request, call_next) -> Response:
         if request.method not in ("POST", "PUT", "PATCH"):
             return await call_next(request)
@@ -41,15 +40,23 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             if existing.get("status") == "PROCESSING":
                 return JSONResponse(
                     status_code=409,
-                    content={"error": {"code": "CONCURRENT_REQUEST", "message": "A request with this Idempotency-Key is currently being processed. Please retry shortly."}}
+                    content={
+                        "error": {
+                            "code": "CONCURRENT_REQUEST",
+                            "message": "A request with this Idempotency-Key is currently being processed. Please retry shortly.",
+                        }
+                    },
                 )
             # Replay cached response
-            headers = {"X-Idempotent-Replay": "true", "X-Request-ID": request.headers.get("X-Request-ID", "")}
+            headers = {
+                "X-Idempotent-Replay": "true",
+                "X-Request-ID": request.headers.get("X-Request-ID", ""),
+            }
             return Response(
                 content=existing.get("body", "").encode("utf-8"),
                 status_code=existing.get("status_code", 200),
                 media_type="application/json",
-                headers=headers
+                headers=headers,
             )
 
         # Mark as processing
@@ -67,9 +74,10 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             # If response was compressed with gzip, decompress it before caching text
             if response.headers.get("content-encoding") == "gzip":
                 import gzip
+
                 try:
                     decoded_body = gzip.decompress(response_body).decode("utf-8")
-                except Exception:
+                except (gzip.BadGzipFile, UnicodeDecodeError, OSError):
                     decoded_body = response_body.decode("utf-8", errors="replace")
             else:
                 decoded_body = response_body.decode("utf-8", errors="replace")
@@ -79,9 +87,9 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 {
                     "status": "COMPLETED",
                     "status_code": response.status_code,
-                    "body": decoded_body
+                    "body": decoded_body,
                 },
-                ttl_seconds=86400
+                ttl_seconds=86400,
             )
 
             # Reconstruct response since iterator was consumed
@@ -91,7 +99,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 content=response_body,
                 status_code=response.status_code,
                 headers=headers,
-                media_type=response.media_type
+                media_type=response.media_type,
             )
         else:
             # On error, clear the lock so citizen can correct and retry immediately

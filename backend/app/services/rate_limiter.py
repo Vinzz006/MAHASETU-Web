@@ -2,19 +2,23 @@ import os
 import time
 from collections import defaultdict
 from threading import Lock
-from typing import Dict, List
-from fastapi import Request, HTTPException, status
+
+from fastapi import HTTPException, Request, status
+
 
 class SlidingWindowRateLimiter:
     """
     Thread-safe, sliding-window in-memory rate limiter for sensitive authentication and public routes.
     Protects against brute-force and credential stuffing.
     """
-    def __init__(self, requests_limit: int, window_seconds: int, name: str = "RateLimiter"):
+
+    def __init__(
+        self, requests_limit: int, window_seconds: int, name: str = "RateLimiter"
+    ):
         self.limit = requests_limit
         self.window = window_seconds
         self.name = name
-        self.history: Dict[str, List[float]] = defaultdict(list)
+        self.history: dict[str, list[float]] = defaultdict(list)
         self.lock = Lock()
 
     def check(self, key: str) -> bool:
@@ -43,15 +47,24 @@ class SlidingWindowRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Rate limit exceeded: Maximum {self.limit} requests allowed per {self.window} seconds.",
-                headers={"Retry-After": str(self.window)}
+                headers={"Retry-After": str(self.window)},
             )
+
 
 # Predefined rate limiters for sensitive endpoints
 # 10 login attempts per minute per IP
-login_rate_limiter = SlidingWindowRateLimiter(requests_limit=10, window_seconds=60, name="LoginLimiter")
+login_rate_limiter = SlidingWindowRateLimiter(
+    requests_limit=10, window_seconds=60, name="LoginLimiter"
+)
 # 10 registration requests per minute per IP
-register_rate_limiter = SlidingWindowRateLimiter(requests_limit=10, window_seconds=60, name="RegisterLimiter")
+register_rate_limiter = SlidingWindowRateLimiter(
+    requests_limit=10, window_seconds=60, name="RegisterLimiter"
+)
 # 30 public passport verification requests per minute per IP
-verify_rate_limiter = SlidingWindowRateLimiter(requests_limit=30, window_seconds=60, name="VerifyLimiter")
+verify_rate_limiter = SlidingWindowRateLimiter(
+    requests_limit=30, window_seconds=60, name="VerifyLimiter"
+)
 # 15 AI assistant queries per minute per citizen/IP
-assistant_rate_limiter = SlidingWindowRateLimiter(requests_limit=15, window_seconds=60, name="AssistantLimiter")
+assistant_rate_limiter = SlidingWindowRateLimiter(
+    requests_limit=15, window_seconds=60, name="AssistantLimiter"
+)

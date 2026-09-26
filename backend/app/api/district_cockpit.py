@@ -1,13 +1,14 @@
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
-from backend.app.models.application import Application
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api/district-cockpit", tags=["MahaDarpan District Collectorate Command Cockpit"])
+router = APIRouter(
+    prefix="/api/district-cockpit",
+    tags=["MahaDarpan District Collectorate Command Cockpit"],
+)
 
 MAHARASHTRA_DISTRICTS_DATA = [
     {
@@ -21,7 +22,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "None (Smooth)",
         "status": "OPTIMAL",
         "collector_office": "District Collectorate, Sassoon Road, Pune",
-        "csc_kiosks_active": 412
+        "csc_kiosks_active": 412,
     },
     {
         "district": "Nagpur",
@@ -34,7 +35,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "None (Smooth)",
         "status": "OPTIMAL",
         "collector_office": "Collectorate Office, Civil Lines, Nagpur",
-        "csc_kiosks_active": 328
+        "csc_kiosks_active": 328,
     },
     {
         "district": "Mumbai Suburban",
@@ -47,7 +48,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "DEPT_B (Urban Slabs)",
         "status": "OPTIMAL",
         "collector_office": "Bandra East, Mumbai Suburban",
-        "csc_kiosks_active": 540
+        "csc_kiosks_active": 540,
     },
     {
         "district": "Nashik",
@@ -60,7 +61,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "None (Smooth)",
         "status": "OPTIMAL",
         "collector_office": "Old Agra Road, Nashik",
-        "csc_kiosks_active": 290
+        "csc_kiosks_active": 290,
     },
     {
         "district": "Chhatrapati Sambhaji Nagar",
@@ -73,7 +74,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "DEPT_C (Bank Handshake)",
         "status": "SURGE_ALERT",
         "collector_office": "Collector Office Road, Chh. Sambhaji Nagar",
-        "csc_kiosks_active": 245
+        "csc_kiosks_active": 245,
     },
     {
         "district": "Kolhapur",
@@ -86,7 +87,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "None (Smooth)",
         "status": "OPTIMAL",
         "collector_office": "Bhavani Mandap Road, Kolhapur",
-        "csc_kiosks_active": 210
+        "csc_kiosks_active": 210,
     },
     {
         "district": "Solapur",
@@ -99,7 +100,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "DEPT_A (Land Registry Sync)",
         "status": "SURGE_ALERT",
         "collector_office": "Station Road, Solapur",
-        "csc_kiosks_active": 195
+        "csc_kiosks_active": 195,
     },
     {
         "district": "Amravati",
@@ -112,7 +113,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "DEPT_B (Income Slabs)",
         "status": "SURGE_ALERT",
         "collector_office": "Camp Area, Amravati",
-        "csc_kiosks_active": 178
+        "csc_kiosks_active": 178,
     },
     {
         "district": "Gadchiroli",
@@ -125,7 +126,7 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "Edge Network Latency (CSC Edge Sync Active)",
         "status": "STORE_AND_FORWARD_RESILIENT",
         "collector_office": "Complex Area, Gadchiroli",
-        "csc_kiosks_active": 112
+        "csc_kiosks_active": 112,
     },
     {
         "district": "Nandurbar",
@@ -138,9 +139,10 @@ MAHARASHTRA_DISTRICTS_DATA = [
         "bottleneck_dept": "Tribal Welfare Registry Sync",
         "status": "STORE_AND_FORWARD_RESILIENT",
         "collector_office": "Collector Office, Nandurbar",
-        "csc_kiosks_active": 134
-    }
+        "csc_kiosks_active": 134,
+    },
 ]
+
 
 class DistrictActionRequest(BaseModel):
     district: str
@@ -148,15 +150,26 @@ class DistrictActionRequest(BaseModel):
     officer_instructions: str
     authorized_by: str = "State e-Governance Mission Director"
 
+
 @router.get("/summary")
 def get_district_cockpit_summary(db: Session = Depends(get_db)):
     """
     Statewide macro dashboard for Chief Secretary & District Collectors.
     """
     total_state_apps = sum(d["total_applications"] for d in MAHARASHTRA_DISTRICTS_DATA)
-    total_state_disbursed = round(sum(d["disbursed_crores"] for d in MAHARASHTRA_DISTRICTS_DATA), 2)
-    avg_sla = round(sum(d["sla_adherence_pct"] for d in MAHARASHTRA_DISTRICTS_DATA) / len(MAHARASHTRA_DISTRICTS_DATA), 1)
-    avg_readiness = round(sum(d["federation_readiness"] for d in MAHARASHTRA_DISTRICTS_DATA) / len(MAHARASHTRA_DISTRICTS_DATA), 1)
+    total_state_disbursed = round(
+        sum(d["disbursed_crores"] for d in MAHARASHTRA_DISTRICTS_DATA), 2
+    )
+    avg_sla = round(
+        sum(d["sla_adherence_pct"] for d in MAHARASHTRA_DISTRICTS_DATA)
+        / len(MAHARASHTRA_DISTRICTS_DATA),
+        1,
+    )
+    avg_readiness = round(
+        sum(d["federation_readiness"] for d in MAHARASHTRA_DISTRICTS_DATA)
+        / len(MAHARASHTRA_DISTRICTS_DATA),
+        1,
+    )
 
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -170,24 +183,31 @@ def get_district_cockpit_summary(db: Session = Depends(get_db)):
             "average_sla_compliance_pct": avg_sla,
             "total_direct_benefit_disbursed_crores": total_state_disbursed,
             "critical_exceptions_open": 2,
-            "active_csc_gramin_centers": sum(d["csc_kiosks_active"] for d in MAHARASHTRA_DISTRICTS_DATA)
+            "active_csc_gramin_centers": sum(
+                d["csc_kiosks_active"] for d in MAHARASHTRA_DISTRICTS_DATA
+            ),
         },
-        "district_leaderboard": sorted(MAHARASHTRA_DISTRICTS_DATA, key=lambda x: x["sla_adherence_pct"], reverse=True),
+        "district_leaderboard": sorted(
+            MAHARASHTRA_DISTRICTS_DATA,
+            key=lambda x: x["sla_adherence_pct"],
+            reverse=True,
+        ),
         "surveillance_alerts": [
             {
                 "district": "Chhatrapati Sambhaji Nagar",
                 "severity": "MEDIUM",
                 "alert": "Dept C Bank Disbursal Gateway latency elevated (+320ms). Auto-failover queue engaged.",
-                "action_recommended": "Monitor PFMS clearing cycle"
+                "action_recommended": "Monitor PFMS clearing cycle",
             },
             {
                 "district": "Gadchiroli",
                 "severity": "LOW",
                 "alert": "Store-and-Forward Edge Sync processed 420 remote village offline packets in last sync cycle.",
-                "action_recommended": "Edge batch sync running normally"
-            }
-        ]
+                "action_recommended": "Edge batch sync running normally",
+            },
+        ],
     }
+
 
 @router.get("/district/{district_name}")
 def get_district_details(district_name: str):
@@ -210,11 +230,20 @@ def get_district_details(district_name: str):
                 "status": d["status"],
                 "active_kiosks": d["csc_kiosks_active"],
                 "top_schemes_disbursed": [
-                    {"scheme": "Maharashtra Employment & Skill Assistance", "beneficiaries": int(d["completed"] * 0.48)},
-                    {"scheme": "MahaDBT Farmer Input Subsidy", "beneficiaries": int(d["completed"] * 0.34)},
-                    {"scheme": "Urban Affordable Housing Subsidy", "beneficiaries": int(d["completed"] * 0.18)}
+                    {
+                        "scheme": "Maharashtra Employment & Skill Assistance",
+                        "beneficiaries": int(d["completed"] * 0.48),
+                    },
+                    {
+                        "scheme": "MahaDBT Farmer Input Subsidy",
+                        "beneficiaries": int(d["completed"] * 0.34),
+                    },
+                    {
+                        "scheme": "Urban Affordable Housing Subsidy",
+                        "beneficiaries": int(d["completed"] * 0.18),
+                    },
                 ],
-                "last_synchronized": datetime.now(timezone.utc).isoformat()
+                "last_synchronized": datetime.now(timezone.utc).isoformat(),
             }
 
     # Default fallback for unlisted districts
@@ -232,8 +261,9 @@ def get_district_details(district_name: str):
         "status": "OPTIMAL",
         "active_kiosks": 150,
         "top_schemes_disbursed": [],
-        "last_synchronized": datetime.now(timezone.utc).isoformat()
+        "last_synchronized": datetime.now(timezone.utc).isoformat(),
     }
+
 
 @router.post("/dispatch-action")
 def dispatch_district_administrative_action(req: DistrictActionRequest):
@@ -241,7 +271,9 @@ def dispatch_district_administrative_action(req: DistrictActionRequest):
     Enables State Mission Directors and District Collectors to trigger real-time
     rebalancing, offline edge batch syncs, or emergency SLA overrides.
     """
-    dispatch_id = f"MH-DISP-2026-{abs(hash(req.district + req.action_type)) % 90000 + 10000}"
+    dispatch_id = (
+        f"MH-DISP-2026-{abs(hash(req.district + req.action_type)) % 90000 + 10000}"
+    )
 
     return {
         "dispatch_id": dispatch_id,
@@ -251,5 +283,5 @@ def dispatch_district_administrative_action(req: DistrictActionRequest):
         "authorized_by": req.authorized_by,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "officer_instructions": req.officer_instructions,
-        "telemetry_message": f"Administrative directive {dispatch_id} transmitted to {req.district} District Collectorate. Automated workflows adjusted."
+        "telemetry_message": f"Administrative directive {dispatch_id} transmitted to {req.district} District Collectorate. Automated workflows adjusted.",
     }

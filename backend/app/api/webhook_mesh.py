@@ -1,11 +1,12 @@
-import hmac
 import hashlib
+import hmac
 import json
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/webhooks", tags=["Interoperability Webhook Mesh"])
 
@@ -16,34 +17,45 @@ WEBHOOK_SUBSCRIPTIONS = [
         "id": "SUB-DEPT-A",
         "department": "Department A (Identity & Civil Registry)",
         "target_url": "https://dept-a.maha.gov.in/api/v1/webhooks/identity-events",
-        "subscribed_events": ["IDENTITY_VERIFIED", "CONSENT_REVOKED", "PASSPORT_ISSUED"],
+        "subscribed_events": [
+            "IDENTITY_VERIFIED",
+            "CONSENT_REVOKED",
+            "PASSPORT_ISSUED",
+        ],
         "auth_method": "HMAC-SHA256",
         "status": "ACTIVE",
         "success_rate_pct": 99.8,
         "average_latency_ms": 42,
-        "last_delivery": "2026-03-03T18:45:10Z"
+        "last_delivery": "2026-03-03T18:45:10Z",
     },
     {
         "id": "SUB-DEPT-B",
         "department": "Department B (Labour & Eligibility Directorate)",
         "target_url": "https://dept-b.maha.gov.in/hooks/eligibility-callback",
-        "subscribed_events": ["ELIGIBILITY_EVALUATION_REQUESTED", "EXCEPTION_ESCALATED"],
+        "subscribed_events": [
+            "ELIGIBILITY_EVALUATION_REQUESTED",
+            "EXCEPTION_ESCALATED",
+        ],
         "auth_method": "HMAC-SHA256",
         "status": "ACTIVE",
         "success_rate_pct": 98.4,
         "average_latency_ms": 118,
-        "last_delivery": "2026-03-03T19:12:05Z"
+        "last_delivery": "2026-03-03T19:12:05Z",
     },
     {
         "id": "SUB-DEPT-C",
         "department": "Department C (Social Welfare & DBT Sanctions)",
         "target_url": "https://dept-c.maha.gov.in/api/disbursal/webhook",
-        "subscribed_events": ["APPLICATION_APPROVED", "DBT_DISBURSED", "PAYMENT_FAILED"],
+        "subscribed_events": [
+            "APPLICATION_APPROVED",
+            "DBT_DISBURSED",
+            "PAYMENT_FAILED",
+        ],
         "auth_method": "HMAC-SHA256",
         "status": "ACTIVE",
         "success_rate_pct": 99.9,
         "average_latency_ms": 65,
-        "last_delivery": "2026-03-03T19:50:33Z"
+        "last_delivery": "2026-03-03T19:50:33Z",
     },
     {
         "id": "SUB-MAHADBT",
@@ -54,11 +66,11 @@ WEBHOOK_SUBSCRIPTIONS = [
         "status": "ACTIVE",
         "success_rate_pct": 99.2,
         "average_latency_ms": 84,
-        "last_delivery": "2026-03-03T20:10:12Z"
-    }
+        "last_delivery": "2026-03-03T20:10:12Z",
+    },
 ]
 
-DELIVERY_LOGS: List[Dict[str, Any]] = [
+DELIVERY_LOGS: list[dict[str, Any]] = [
     {
         "delivery_id": "DLV-2026-9011",
         "subscription_id": "SUB-DEPT-C",
@@ -68,7 +80,7 @@ DELIVERY_LOGS: List[Dict[str, Any]] = [
         "latency_ms": 58,
         "hmac_signature_verified": True,
         "timestamp": "2026-03-03T19:50:33Z",
-        "status": "DELIVERED"
+        "status": "DELIVERED",
     },
     {
         "delivery_id": "DLV-2026-9012",
@@ -79,14 +91,16 @@ DELIVERY_LOGS: List[Dict[str, Any]] = [
         "latency_ms": 39,
         "hmac_signature_verified": True,
         "timestamp": "2026-03-03T18:45:10Z",
-        "status": "DELIVERED"
-    }
+        "status": "DELIVERED",
+    },
 ]
+
 
 class TestWebhookDispatchRequest(BaseModel):
     subscription_id: str
     event_type: str = "INTEROP_PACKET_VERIFIED"
-    sample_payload: Optional[Dict[str, Any]] = None
+    sample_payload: dict[str, Any] | None = None
+
 
 @router.get("/subscriptions")
 def get_webhook_subscriptions():
@@ -97,11 +111,18 @@ def get_webhook_subscriptions():
         "portal": "MahaSetu Interoperability Webhook Mesh",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_subscriptions": len(WEBHOOK_SUBSCRIPTIONS),
-        "active_mesh_endpoints": sum(1 for s in WEBHOOK_SUBSCRIPTIONS if s["status"] == "ACTIVE"),
-        "average_mesh_latency_ms": round(sum(s["average_latency_ms"] for s in WEBHOOK_SUBSCRIPTIONS) / len(WEBHOOK_SUBSCRIPTIONS), 1),
+        "active_mesh_endpoints": sum(
+            1 for s in WEBHOOK_SUBSCRIPTIONS if s["status"] == "ACTIVE"
+        ),
+        "average_mesh_latency_ms": round(
+            sum(s["average_latency_ms"] for s in WEBHOOK_SUBSCRIPTIONS)
+            / len(WEBHOOK_SUBSCRIPTIONS),
+            1,
+        ),
         "subscriptions": WEBHOOK_SUBSCRIPTIONS,
-        "recent_deliveries": DELIVERY_LOGS[:10]
+        "recent_deliveries": DELIVERY_LOGS[:10],
     }
+
 
 @router.post("/dispatch-test")
 def dispatch_test_webhook_event(req: TestWebhookDispatchRequest):
@@ -109,7 +130,9 @@ def dispatch_test_webhook_event(req: TestWebhookDispatchRequest):
     Simulates sending a high-security signed webhook packet to a government department.
     Computes cryptographic HMAC-SHA256 signature for verification by receiver.
     """
-    sub = next((s for s in WEBHOOK_SUBSCRIPTIONS if s["id"] == req.subscription_id), None)
+    sub = next(
+        (s for s in WEBHOOK_SUBSCRIPTIONS if s["id"] == req.subscription_id), None
+    )
     if not sub:
         raise HTTPException(status_code=404, detail="Webhook subscription not found.")
 
@@ -119,11 +142,13 @@ def dispatch_test_webhook_event(req: TestWebhookDispatchRequest):
         "target_department": sub["department"],
         "service_passport": "MH-APP-2026-TEST-EVENT",
         "interop_hub_version": "v1.0.0-PROD",
-        "canonical_fields_count": 8
+        "canonical_fields_count": 8,
     }
 
     serialized_payload = json.dumps(payload, sort_keys=True)
-    hmac_digest = hmac.new(HMAC_MASTER_SECRET.encode(), serialized_payload.encode(), hashlib.sha256).hexdigest()
+    hmac_digest = hmac.new(
+        HMAC_MASTER_SECRET.encode(), serialized_payload.encode(), hashlib.sha256
+    ).hexdigest()
 
     delivery_id = f"DLV-2026-{int(time.time()) % 90000 + 10000}"
     simulated_latency = round(time.time() % 40 + 25, 1)
@@ -137,7 +162,7 @@ def dispatch_test_webhook_event(req: TestWebhookDispatchRequest):
         "latency_ms": simulated_latency,
         "hmac_signature_verified": True,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "status": "DELIVERED"
+        "status": "DELIVERED",
     }
     DELIVERY_LOGS.insert(0, log_entry)
 
@@ -152,9 +177,9 @@ def dispatch_test_webhook_event(req: TestWebhookDispatchRequest):
             "X-MahaSetu-Signature": f"sha256={hmac_digest}",
             "X-MahaSetu-Event-ID": delivery_id,
             "X-MahaSetu-Timestamp": datetime.now(timezone.utc).isoformat(),
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         },
         "payload_delivered": payload,
         "verification_result": "HMAC_VERIFIED_AUTHENTIC",
-        "circuit_breaker_status": "CLOSED (HEALTHY)"
+        "circuit_breaker_status": "CLOSED (HEALTHY)",
     }

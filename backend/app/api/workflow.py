@@ -1,25 +1,33 @@
-from typing import List, Dict, Any
+from backend.app.auth import get_current_user, require_roles
+from backend.app.database import get_db
+from backend.app.models.application import Application
+from backend.app.schemas.workflow import (
+    AdminReviewRequest,
+    AuditorReviewRequest,
+    WorkflowStatusResponse,
+    WorkflowStepResponse,
+)
+from backend.app.services.workflow import WorkflowEngine
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.app.database import get_db
-from backend.app.models.application import Application
-from backend.app.models.workflow import WorkflowStep
-from backend.app.schemas.workflow import WorkflowStepResponse, WorkflowStatusResponse, AdminReviewRequest, AuditorReviewRequest
-from backend.app.services.workflow import WorkflowEngine
-from backend.app.auth import get_current_user, require_roles
-
 router = APIRouter(prefix="/api/workflow", tags=["Workflow Engine"])
+
 
 @router.get("/{application_id}", response_model=WorkflowStatusResponse)
 def get_workflow_status(
     application_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
-    app = db.query(Application).filter(
-        (Application.id == application_id) | (Application.application_number == application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == application_id)
+            | (Application.application_number == application_id)
+        )
+        .first()
+    )
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
@@ -37,7 +45,7 @@ def get_workflow_status(
             verifier_id=s.verifier_id,
             comments=s.comments,
             rejection_reason=s.rejection_reason,
-            details=s.details or {}
+            details=s.details or {},
         )
         for s in steps
     ]
@@ -52,18 +60,24 @@ def get_workflow_status(
         current_department=app.current_department,
         is_completed=is_completed,
         is_exception=is_exception,
-        steps=step_responses
+        steps=step_responses,
     )
+
 
 @router.post("/{application_id}/advance")
 def advance_workflow_step(
     application_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
-    app = db.query(Application).filter(
-        (Application.id == application_id) | (Application.application_number == application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == application_id)
+            | (Application.application_number == application_id)
+        )
+        .first()
+    )
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
@@ -71,16 +85,22 @@ def advance_workflow_step(
     res = WorkflowEngine.advance_step(db, app.id, actor_id=actor)
     return res
 
+
 @router.post("/{application_id}/admin-review")
 def admin_review_application(
     application_id: str,
     req: AdminReviewRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_roles(["ADMIN"]))
+    current_user=Depends(require_roles(["ADMIN"])),
 ):
-    app = db.query(Application).filter(
-        (Application.id == application_id) | (Application.application_number == application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == application_id)
+            | (Application.application_number == application_id)
+        )
+        .first()
+    )
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
@@ -91,20 +111,26 @@ def admin_review_application(
         decision=req.decision,
         comments=req.comments,
         rejection_reason=req.rejection_reason,
-        actor_id=actor
+        actor_id=actor,
     )
     return res
+
 
 @router.post("/{application_id}/auditor-review")
 def auditor_review_application(
     application_id: str,
     req: AuditorReviewRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_roles(["AUDITOR", "ADMIN"]))
+    current_user=Depends(require_roles(["AUDITOR", "ADMIN"])),
 ):
-    app = db.query(Application).filter(
-        (Application.id == application_id) | (Application.application_number == application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == application_id)
+            | (Application.application_number == application_id)
+        )
+        .first()
+    )
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
@@ -114,19 +140,25 @@ def auditor_review_application(
         application_id=app.id,
         decision=req.decision,
         comments=req.comments,
-        actor_id=actor
+        actor_id=actor,
     )
     return res
+
 
 @router.post("/{application_id}/run-all")
 def run_full_workflow(
     application_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
-    app = db.query(Application).filter(
-        (Application.id == application_id) | (Application.application_number == application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == application_id)
+            | (Application.application_number == application_id)
+        )
+        .first()
+    )
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
@@ -134,15 +166,21 @@ def run_full_workflow(
     res = WorkflowEngine.run_full_pipeline(db, app.id, actor_id=actor)
     return res
 
+
 @router.post("/{application_id}/retry")
 def retry_failed_step(
     application_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
-    app = db.query(Application).filter(
-        (Application.id == application_id) | (Application.application_number == application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == application_id)
+            | (Application.application_number == application_id)
+        )
+        .first()
+    )
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 

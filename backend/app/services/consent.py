@@ -1,12 +1,12 @@
-import uuid
 import hashlib
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Dict, Any
-from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
-from backend.app.models.consent import Consent
+
 from backend.app.models.application import Application
+from backend.app.models.consent import Consent
 from backend.app.services.audit import create_audit_log
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
 
 class ConsentManager:
     """
@@ -22,13 +22,13 @@ class ConsentManager:
         citizen_id: str,
         requested_by: str = "Employment Department (DEPT_C)",
         purpose: str = "Eligibility verification under Maharashtra Employment Support Scheme",
-        data_categories: Optional[List[str]] = None
+        data_categories: list[str] | None = None,
     ) -> Consent:
         if data_categories is None:
             data_categories = [
                 "Identity Information (Name, Date of Birth, District from Department A)",
                 "Address & Domicile Proof (Maharashtra Resident Verification)",
-                "Socio-Economic & Income Classification (Department B)"
+                "Socio-Economic & Income Classification (Department B)",
             ]
 
         # Generate unique consent number: CON-2026-XXXXXX
@@ -44,7 +44,7 @@ class ConsentManager:
             purpose=purpose,
             data_categories=data_categories,
             status="REQUESTED",
-            expires_at=now_utc.replace(tzinfo=None) + timedelta(days=90)
+            expires_at=now_utc.replace(tzinfo=None) + timedelta(days=90),
         )
         db.add(consent)
         db.commit()
@@ -56,7 +56,7 @@ class ConsentManager:
             action="CONSENT_REQUESTED",
             resource="CONSENT",
             application_id=application_id,
-            metadata={"consent_number": consent_num, "requested_by": requested_by}
+            metadata={"consent_number": consent_num, "requested_by": requested_by},
         )
 
         return consent
@@ -68,7 +68,9 @@ class ConsentManager:
             raise HTTPException(status_code=404, detail="Consent record not found")
 
         if consent.citizen_id != citizen_id:
-            raise HTTPException(status_code=403, detail="Unauthorized: You cannot approve this consent")
+            raise HTTPException(
+                status_code=403, detail="Unauthorized: You cannot approve this consent"
+            )
 
         consent.status = "AUTHORIZED"
         consent.granted_at = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -77,7 +79,11 @@ class ConsentManager:
         consent.consent_hash = hashlib.sha256(raw_sig.encode()).hexdigest()
 
         # Update application status
-        app = db.query(Application).filter(Application.id == consent.application_id).first()
+        app = (
+            db.query(Application)
+            .filter(Application.id == consent.application_id)
+            .first()
+        )
         if app and app.status == "APPLICATION_CREATED":
             app.status = "CONSENT_GRANTED"
 
@@ -93,8 +99,8 @@ class ConsentManager:
             metadata={
                 "consent_number": consent.consent_number,
                 "consent_hash": consent.consent_hash,
-                "status": "AUTHORIZED"
-            }
+                "status": "AUTHORIZED",
+            },
         )
 
         return consent
@@ -118,7 +124,7 @@ class ConsentManager:
             action="CONSENT_REVOKED",
             resource="CONSENT",
             application_id=consent.application_id,
-            metadata={"consent_number": consent.consent_number, "status": "REVOKED"}
+            metadata={"consent_number": consent.consent_number, "status": "REVOKED"},
         )
 
         return consent
@@ -126,23 +132,30 @@ class ConsentManager:
     @classmethod
     def validate_consent(cls, db: Session, application_id: str) -> bool:
         """Enforces that an active, AUTHORIZED consent exists before any data exchange."""
-        consent = db.query(Consent).filter(
-            Consent.application_id == application_id,
-            Consent.status == "AUTHORIZED"
-        ).first()
+        consent = (
+            db.query(Consent)
+            .filter(
+                Consent.application_id == application_id, Consent.status == "AUTHORIZED"
+            )
+            .first()
+        )
 
         if not consent:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Interoperability Error: Protected information exchange blocked. Valid citizen consent has not been granted."
+                detail="Interoperability Error: Protected information exchange blocked. Valid citizen consent has not been granted.",
             )
 
         now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
-        exp = consent.expires_at.replace(tzinfo=None) if consent.expires_at and consent.expires_at.tzinfo else consent.expires_at
+        exp = (
+            consent.expires_at.replace(tzinfo=None)
+            if consent.expires_at and consent.expires_at.tzinfo
+            else consent.expires_at
+        )
         if exp and exp < now_naive:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Interoperability Error: Citizen consent has expired."
+                detail="Interoperability Error: Citizen consent has expired.",
             )
 
         return True

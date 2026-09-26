@@ -1,10 +1,13 @@
 import random
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/tribunal-nyaya", tags=["MahaNyaya — Multi-Agent RTSA Quasi-Judicial Tribunal"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/tribunal-nyaya",
+    tags=["MahaNyaya — Multi-Agent RTSA Quasi-Judicial Tribunal"],
+)
 
 SAMPLE_DISPUTES = [
     {
@@ -15,7 +18,7 @@ SAMPLE_DISPUTES = [
         "days_elapsed": 24,
         "defaulting_department": "Revenue & Land Records",
         "defaulting_officer": "Talathi Desk, Haveli Ward 3",
-        "status": "HEARING_SCHEDULED"
+        "status": "HEARING_SCHEDULED",
     },
     {
         "case_number": "RTSA-MH-THN-2026-089",
@@ -25,12 +28,14 @@ SAMPLE_DISPUTES = [
         "days_elapsed": 18,
         "defaulting_department": "Social Welfare & Civil Registry",
         "defaulting_officer": "Sub-Divisional Officer Desk, Thane",
-        "status": "AWAITING_AGENT_DELIBERATION"
-    }
+        "status": "AWAITING_AGENT_DELIBERATION",
+    },
 ]
+
 
 class ArbitrateDisputeRequest(BaseModel):
     case_number: str = "RTSA-MH-PUN-2026-042"
+
 
 @router.get("/disputes")
 def get_tribunal_disputes():
@@ -42,8 +47,9 @@ def get_tribunal_disputes():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_active_tribunal_cases": len(SAMPLE_DISPUTES),
         "statutory_framework": "Maharashtra Right to Public Services Act (RTSA), 2015",
-        "disputes": SAMPLE_DISPUTES
+        "disputes": SAMPLE_DISPUTES,
     }
+
 
 @router.post("/arbitrate")
 def arbitrate_dispute_multi_agent(req: ArbitrateDisputeRequest):
@@ -55,7 +61,10 @@ def arbitrate_dispute_multi_agent(req: ArbitrateDisputeRequest):
     Produces an enforceable quasi-judicial sanction decree with citizen compensation.
     """
     now_iso = datetime.now(timezone.utc).isoformat()
-    case = next((c for c in SAMPLE_DISPUTES if c["case_number"] == req.case_number), SAMPLE_DISPUTES[0])
+    case = next(
+        (c for c in SAMPLE_DISPUTES if c["case_number"] == req.case_number),
+        SAMPLE_DISPUTES[0],
+    )
     delay_days = max(1, case["days_elapsed"] - case["statutory_sla_days"])
     compensation_inr = min(5000, delay_days * 250)
 
@@ -67,24 +76,24 @@ def arbitrate_dispute_multi_agent(req: ArbitrateDisputeRequest):
             "investigative_agent": {
                 "agent_id": "AGENT-INVESTIGATION-01",
                 "verdict": f"Confirmed SLA breach of {delay_days} days. File sat idle at desk without legitimate query raise.",
-                "evidence_integrity": "100% (Cryptographic timestamp audit)"
+                "evidence_integrity": "100% (Cryptographic timestamp audit)",
             },
             "statutory_legal_agent": {
                 "agent_id": "AGENT-RTSA-STATUTE-02",
-                "verdict": f"Violation of Section 9(1) of RTSA 2015. Statutory fine calculated at ₹250/day.",
-                "prescribed_statute": "Maharashtra Act No. XXXI of 2015, Section 10"
+                "verdict": "Violation of Section 9(1) of RTSA 2015. Statutory fine calculated at ₹250/day.",
+                "prescribed_statute": "Maharashtra Act No. XXXI of 2015, Section 10",
             },
             "department_ombudsman_agent": {
                 "agent_id": "AGENT-DEPT-OMBUDSMAN-03",
                 "verdict": "No systemic server downtime or force majeure detected. Department concurs with immediate sanction.",
-                "remedial_action": "Application auto-approved via MahaSetu Sovereign Override"
-            }
+                "remedial_action": "Application auto-approved via MahaSetu Sovereign Override",
+            },
         },
         "quasi_judicial_decree": {
             "rtsa_order_number": f"ORDER-MPSC-2026-{random.randint(1000, 9999)}",
             "citizen_relief": "CERTIFICATE AUTO-APPROVED & SIGNED WITH GOVT KEY",
             "citizen_compensation_inr": float(compensation_inr),
             "compensation_deduction_source": f"Salaries Pool of Defaulting Officer: {case['defaulting_officer']}",
-            "statutory_effect": "LEGALLY BINDING UNDER SECTION 10(2) OF MAHARASHTRA RTSA 2015"
-        }
+            "statutory_effect": "LEGALLY BINDING UNDER SECTION 10(2) OF MAHARASHTRA RTSA 2015",
+        },
     }

@@ -1,13 +1,16 @@
-import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
-from fastapi import APIRouter, HTTPException
+from typing import Any
 
-router = APIRouter(prefix="/api/chaos", tags=["ChaosSetu — Interoperability Resilience & Chaos Simulator"])
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/chaos",
+    tags=["ChaosSetu — Interoperability Resilience & Chaos Simulator"],
+)
 
 # Global in-memory chaos state
-CURRENT_CHAOS_STATE: Dict[str, Any] = {
+CURRENT_CHAOS_STATE: dict[str, Any] = {
     "active_experiment": None,
     "circuit_breaker_mode": "HEALTHY_CLOSED",
     "injected_latency_ms": 0,
@@ -16,7 +19,7 @@ CURRENT_CHAOS_STATE: Dict[str, Any] = {
     "network_partition_target": None,
     "last_experiment_timestamp": None,
     "experiments_run_count": 4,
-    "resilience_grade": "99.99% FAULT-TOLERANT"
+    "resilience_grade": "99.99% FAULT-TOLERANT",
 }
 
 CHAOS_PRESETS = [
@@ -25,35 +28,37 @@ CHAOS_PRESETS = [
         "name": "Degraded Department B Latency Spike",
         "target": "DEPT_B_ELIGIBILITY",
         "description": "Injects +3,500ms artificial network latency. Tests SLA engine timeout guards and asynchronous queue unblocking.",
-        "expected_behavior": "Automated timeout triggered after 2,000ms. Workflow preserved in RETRY_PENDING without dropping state."
+        "expected_behavior": "Automated timeout triggered after 2,000ms. Workflow preserved in RETRY_PENDING without dropping state.",
     },
     {
         "id": "SCHEMA_DRIFT",
         "name": "Legacy Department JSON Schema Drift",
         "target": "CANONICAL_TRANSFORMER",
         "description": "Mutates standard fields into unannounced legacy nomenclature ('annualIncome' -> 'yearly_remuneration_inr').",
-        "expected_behavior": "Canonical Transformation Engine fuzzy heuristic activates. Automatically resolves drift with 96% semantic match."
+        "expected_behavior": "Canonical Transformation Engine fuzzy heuristic activates. Automatically resolves drift with 96% semantic match.",
     },
     {
         "id": "NETWORK_PARTITION",
         "name": "Total Department Gateway Network Partition",
         "target": "DEPT_B_GATEWAY",
         "description": "Simulates complete HTTP 503 service unavailable blackout during active application processing.",
-        "expected_behavior": "Circuit breaker trips to OPEN. 2 retries attempted -> application routed cleanly to EXCEPTION resilience queue."
+        "expected_behavior": "Circuit breaker trips to OPEN. 2 retries attempted -> application routed cleanly to EXCEPTION resilience queue.",
     },
     {
         "id": "TRAFFIC_BURST",
         "name": "Statewide DBT Disbursal Traffic Burst",
         "target": "INTEROP_CORE_BUS",
         "description": "Simulates 10,000 concurrent citizen credential queries during festival subsidy announcement.",
-        "expected_behavior": "Rate-limiting token bucket smooths traffic. Zero 500 errors. 100% packets queued with zero data loss."
-    }
+        "expected_behavior": "Rate-limiting token bucket smooths traffic. Zero 500 errors. 100% packets queued with zero data loss.",
+    },
 ]
+
 
 class TriggerChaosRequest(BaseModel):
     experiment_id: str
     intensity: str = "HIGH"  # "LOW", "MEDIUM", "HIGH"
     operator: str = "Resilience Lead Engineer"
+
 
 @router.get("/status")
 def get_chaos_status():
@@ -69,9 +74,10 @@ def get_chaos_status():
             "status": CURRENT_CHAOS_STATE["circuit_breaker_mode"],
             "failure_threshold_pct": 50.0,
             "recovery_timeout_sec": 15,
-            "fallback_strategy": "DEGRADED_EPHEMERAL_QUEUE"
-        }
+            "fallback_strategy": "DEGRADED_EPHEMERAL_QUEUE",
+        },
     }
+
 
 @router.post("/trigger")
 def trigger_chaos_experiment(req: TriggerChaosRequest):
@@ -80,7 +86,9 @@ def trigger_chaos_experiment(req: TriggerChaosRequest):
     """
     preset = next((p for p in CHAOS_PRESETS if p["id"] == req.experiment_id), None)
     if not preset:
-        raise HTTPException(status_code=404, detail=f"Unknown chaos experiment ID: {req.experiment_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Unknown chaos experiment ID: {req.experiment_id}"
+        )
 
     now_iso = datetime.now(timezone.utc).isoformat()
     CURRENT_CHAOS_STATE["active_experiment"] = preset["id"]
@@ -114,8 +122,9 @@ def trigger_chaos_experiment(req: TriggerChaosRequest):
         "operator": req.operator,
         "timestamp": now_iso,
         "current_state": CURRENT_CHAOS_STATE,
-        "telemetry_message": action_summary
+        "telemetry_message": action_summary,
     }
+
 
 @router.post("/reset")
 def reset_chaos_baseline():
@@ -128,11 +137,13 @@ def reset_chaos_baseline():
     CURRENT_CHAOS_STATE["simulated_error_rate_pct"] = 0.0
     CURRENT_CHAOS_STATE["schema_drift_active"] = False
     CURRENT_CHAOS_STATE["network_partition_target"] = None
-    CURRENT_CHAOS_STATE["last_experiment_timestamp"] = datetime.now(timezone.utc).isoformat()
+    CURRENT_CHAOS_STATE["last_experiment_timestamp"] = datetime.now(
+        timezone.utc
+    ).isoformat()
 
     return {
         "status": "HEALTHY_BASELINE_RESTORED",
         "circuit_breaker": "CLOSED",
         "state": CURRENT_CHAOS_STATE,
-        "message": "All injected faults cleared. Interoperability Hub operating at 100% nominal health."
+        "message": "All injected faults cleared. Interoperability Hub operating at 100% nominal health.",
     }

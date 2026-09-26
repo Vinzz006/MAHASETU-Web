@@ -1,12 +1,12 @@
 import hashlib
-import hmac
-import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
-from fastapi import APIRouter, HTTPException
 
-router = APIRouter(prefix="/api/mpc", tags=["MahaVault — Confidential Multi-Party Computing (MPC)"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/mpc", tags=["MahaVault — Confidential Multi-Party Computing (MPC)"]
+)
 
 MPC_BLINDING_SALT = "MAHASETU_CONFIDENTIAL_MPC_SALT_2026"
 
@@ -20,7 +20,7 @@ ACTIVE_MPC_SESSIONS = [
         "status": "COMPUTATION_ACTIVE",
         "blind_records_exchanged": 14200,
         "raw_data_leakage": "0 BYTES (CRYPTOGRAPHICALLY BLINDED)",
-        "last_active": "2026-03-03T21:10:00Z"
+        "last_active": "2026-03-03T21:10:00Z",
     },
     {
         "session_id": "MPC-SESS-902",
@@ -31,15 +31,17 @@ ACTIVE_MPC_SESSIONS = [
         "status": "COMPLETED",
         "blind_records_exchanged": 8900,
         "raw_data_leakage": "0 BYTES (CRYPTOGRAPHICALLY BLINDED)",
-        "last_active": "2026-03-03T20:45:00Z"
-    }
+        "last_active": "2026-03-03T20:45:00Z",
+    },
 ]
 
+
 class BlindMatchRequest(BaseModel):
-    citizen_blind_hash: Optional[str] = None
+    citizen_blind_hash: str | None = None
     party_a_id: str = "DEPT_REVENUE"
     party_b_id: str = "DEPT_SOCIAL_WELFARE"
     criterion: str = "INCOME_LEQ_300K_AND_LAND_LEQ_5ACRES"
+
 
 @router.get("/sessions")
 def get_mpc_sessions():
@@ -53,10 +55,11 @@ def get_mpc_sessions():
         "protocol_standards": [
             "Diffie-Hellman Private Set Intersection (PSI-DH)",
             "Homomorphic Predicate Evaluation",
-            "Zero Raw Data Sharing Principle (DPDP 2023 Compliant)"
+            "Zero Raw Data Sharing Principle (DPDP 2023 Compliant)",
         ],
-        "sessions": ACTIVE_MPC_SESSIONS
+        "sessions": ACTIVE_MPC_SESSIONS,
     }
+
 
 @router.post("/verify-blind-match")
 def verify_blind_match(req: BlindMatchRequest):
@@ -66,14 +69,20 @@ def verify_blind_match(req: BlindMatchRequest):
     """
     timestamp_str = datetime.now(timezone.utc).isoformat()
     raw_id = req.citizen_blind_hash or "CIT-DEMO-9999999999"
-    
+
     # Blinding phase Party A
-    blind_token_a = hashlib.sha256(f"{MPC_BLINDING_SALT}:{req.party_a_id}:{raw_id}".encode()).hexdigest()
+    blind_token_a = hashlib.sha256(
+        f"{MPC_BLINDING_SALT}:{req.party_a_id}:{raw_id}".encode()
+    ).hexdigest()
     # Blinding phase Party B
-    blind_token_b = hashlib.sha256(f"{MPC_BLINDING_SALT}:{req.party_b_id}:{raw_id}".encode()).hexdigest()
-    
+    blind_token_b = hashlib.sha256(
+        f"{MPC_BLINDING_SALT}:{req.party_b_id}:{raw_id}".encode()
+    ).hexdigest()
+
     # Joint intersection token
-    psi_joint_token = hashlib.sha256(f"{blind_token_a}:{blind_token_b}".encode()).hexdigest()
+    psi_joint_token = hashlib.sha256(
+        f"{blind_token_a}:{blind_token_b}".encode()
+    ).hexdigest()
 
     return {
         "status": "CONFIDENTIAL_MATCH_VERIFIED",
@@ -86,5 +95,5 @@ def verify_blind_match(req: BlindMatchRequest):
         "intersection_certificate": f"cert:mpc:{psi_joint_token[:24]}",
         "match_result": True,
         "data_leakage_guarantee": "Neither party revealed non-matching database entries. MahaSetu acted strictly as a zero-knowledge communication coordinator.",
-        "timestamp": timestamp_str
+        "timestamp": timestamp_str,
     }

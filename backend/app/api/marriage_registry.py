@@ -1,11 +1,14 @@
-import random
 import hashlib
+import random
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/marriage-registry", tags=["MahaBandhan — Marriage e-Registry & Joint Entitlements"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/marriage-registry",
+    tags=["MahaBandhan — Marriage e-Registry & Joint Entitlements"],
+)
 
 RECENT_MARRIAGES = [
     {
@@ -15,7 +18,7 @@ RECENT_MARRIAGES = [
         "spouse_two_name": "Priyanka Suresh Deshpande",
         "registration_date": "2026-08-28",
         "joint_ration_card_status": "AUTO_PROVISIONED",
-        "pmay_joint_eligibility": "VERIFIED_ACTIVE"
+        "pmay_joint_eligibility": "VERIFIED_ACTIVE",
     },
     {
         "registration_id": "MRG-BMC-2026-1192",
@@ -24,9 +27,10 @@ RECENT_MARRIAGES = [
         "spouse_two_name": "Neha Milind Sawant",
         "registration_date": "2026-09-01",
         "joint_ration_card_status": "AUTO_PROVISIONED",
-        "pmay_joint_eligibility": "VERIFIED_ACTIVE"
-    }
+        "pmay_joint_eligibility": "VERIFIED_ACTIVE",
+    },
 ]
+
 
 class RegisterMarriageRequest(BaseModel):
     spouse_one_name: str = "Gaurav Vilas Shinde"
@@ -35,6 +39,7 @@ class RegisterMarriageRequest(BaseModel):
     spouse_two_aadhaar_vault: str = "vault:uidai:771209384512"
     marriage_venue: str = "Shivaji Park Cultural Hall, Dadar, Mumbai"
     corporation: str = "Brihanmumbai Municipal Corporation"
+
 
 @router.get("/recent-marriages")
 def get_recent_marriage_registrations():
@@ -46,8 +51,9 @@ def get_recent_marriage_registrations():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_marriages_registered": len(RECENT_MARRIAGES),
         "civil_act": "Maharashtra Regulation of Marriage Bureaus & Registration of Marriages Act 1998",
-        "records": RECENT_MARRIAGES
+        "records": RECENT_MARRIAGES,
     }
+
 
 @router.post("/register-marriage")
 def register_marriage_and_provision_joint_entitlements(req: RegisterMarriageRequest):
@@ -58,7 +64,9 @@ def register_marriage_and_provision_joint_entitlements(req: RegisterMarriageRequ
     reg_id = f"MRG-MH-{random.randint(100000, 999999)}"
 
     sig_payload = f"{reg_id}:{req.spouse_one_name}:{req.spouse_two_name}:{now_iso}"
-    cert_hash = f"0xMARRIAGE-CERT-{hashlib.sha256(sig_payload.encode()).hexdigest()[:24]}"
+    cert_hash = (
+        f"0xMARRIAGE-CERT-{hashlib.sha256(sig_payload.encode()).hexdigest()[:24]}"
+    )
 
     return {
         "status": "MARRIAGE_DIGITALLY_REGISTERED",
@@ -69,8 +77,8 @@ def register_marriage_and_provision_joint_entitlements(req: RegisterMarriageRequ
         "auto_provisioned_welfare": [
             "PDS MahaFood Joint Ration Family Unit generated.",
             "Pradhan Mantri Awas Yojana (PMAY) Joint Subsidy Certificate issued.",
-            "Spouse nominee automatically reflected in MSRTC and state pension records."
+            "Spouse nominee automatically reflected in MSRTC and state pension records.",
         ],
         "zero_paperwork_guarantee": "100% Faceless with Aadhaar e-Sign & DigiLocker Delivery",
-        "timestamp": now_iso
+        "timestamp": now_iso,
     }

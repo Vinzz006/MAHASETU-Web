@@ -1,10 +1,12 @@
-import time
 import random
-from typing import Dict, Any, List
-from pydantic import BaseModel
-from fastapi import APIRouter
+import time
 
-router = APIRouter(prefix="/api/dpi", tags=["National Digital Public Infrastructure (DPI) Gateway"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/dpi", tags=["National Digital Public Infrastructure (DPI) Gateway"]
+)
 
 NATIONAL_DPI_REGISTRIES = [
     {
@@ -16,7 +18,7 @@ NATIONAL_DPI_REGISTRIES = [
         "status": "FEDERATED_CONNECTED",
         "latency_ms": 42.1,
         "daily_volume": "1,420,000 requests",
-        "purpose": "Citizen credential issuance and national document retrieval"
+        "purpose": "Citizen credential issuance and national document retrieval",
     },
     {
         "id": "DPI-PFMS-EKUBER",
@@ -27,7 +29,7 @@ NATIONAL_DPI_REGISTRIES = [
         "status": "FEDERATED_CONNECTED",
         "latency_ms": 68.4,
         "daily_volume": "890,000 disbursals",
-        "purpose": "Automated Direct Benefit Transfer (DBT) to citizen Aadhaar bank accounts"
+        "purpose": "Automated Direct Benefit Transfer (DBT) to citizen Aadhaar bank accounts",
     },
     {
         "id": "DPI-AGRISTACK",
@@ -38,7 +40,7 @@ NATIONAL_DPI_REGISTRIES = [
         "status": "FEDERATED_CONNECTED",
         "latency_ms": 51.0,
         "daily_volume": "340,000 queries",
-        "purpose": "Cross-verification of land tenure and farmer crop subsidy entitlements"
+        "purpose": "Cross-verification of land tenure and farmer crop subsidy entitlements",
     },
     {
         "id": "DPI-ABDM",
@@ -49,13 +51,15 @@ NATIONAL_DPI_REGISTRIES = [
         "status": "FEDERATED_CONNECTED",
         "latency_ms": 47.8,
         "daily_volume": "620,000 records",
-        "purpose": "Ayushman Card and medical welfare entitlement cross-checks"
-    }
+        "purpose": "Ayushman Card and medical welfare entitlement cross-checks",
+    },
 ]
+
 
 class DPIHandshakeRequest(BaseModel):
     target_dpi_id: str
     sample_payload_type: str = "BENEFICIARY_VERIFY"
+
 
 @router.get("/status")
 def get_dpi_gateway_status():
@@ -66,16 +70,19 @@ def get_dpi_gateway_status():
         "registries": NATIONAL_DPI_REGISTRIES,
         "security_standard": "mTLS 1.3 / OAuth 2.0 PKCE / AES-GCM-256",
         "average_national_handshake_ms": 52.3,
-        "overall_gateway_health": "100% OPERATIONAL"
+        "overall_gateway_health": "100% OPERATIONAL",
     }
+
 
 @router.post("/test-handshake")
 def test_dpi_handshake(req: DPIHandshakeRequest):
     time.sleep(0.2)
-    reg = next((r for r in NATIONAL_DPI_REGISTRIES if r["id"] == req.target_dpi_id), NATIONAL_DPI_REGISTRIES[0])
+    reg = next(
+        (r for r in NATIONAL_DPI_REGISTRIES if r["id"] == req.target_dpi_id),
+        NATIONAL_DPI_REGISTRIES[0],
+    )
 
     packet_id = f"NAT-DPI-{random.randint(100000, 999999)}"
-    utr_stamp = f"RBI{time.strftime('%Y%m%d%H%M%S')}"
 
     return {
         "handshake_status": "SUCCESS_VERIFIED",
@@ -86,5 +93,5 @@ def test_dpi_handshake(req: DPIHandshakeRequest):
         "latency_ms": round(reg["latency_ms"] + random.uniform(-4.0, 4.0), 1),
         "transmitted_sample_type": req.sample_payload_type,
         "verification_token": f"0x{random.randbytes(16).hex()}",
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }

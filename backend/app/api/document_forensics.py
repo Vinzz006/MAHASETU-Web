@@ -1,11 +1,14 @@
 import hashlib
 import random
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/document-forensics", tags=["MahaSatya — Multi-Modal AI Document Forensics"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/document-forensics",
+    tags=["MahaSatya — Multi-Modal AI Document Forensics"],
+)
 
 RECENT_FORENSIC_AUDITS = [
     {
@@ -17,7 +20,7 @@ RECENT_FORENSIC_AUDITS = [
         "font_anomaly_detected": False,
         "qr_digest_match": True,
         "metadata_editor_artifacts": "NONE (ORIGINAL MAHABHULEKH EXPORT)",
-        "timestamp": "2026-03-03T19:40:00Z"
+        "timestamp": "2026-03-03T19:40:00Z",
     },
     {
         "audit_id": "FOR-AUDIT-882",
@@ -28,14 +31,16 @@ RECENT_FORENSIC_AUDITS = [
         "font_anomaly_detected": True,
         "qr_digest_match": False,
         "metadata_editor_artifacts": "DETECTED: Adobe Photoshop Elements 2024 / Modified Glyph Kerning",
-        "timestamp": "2026-03-03T18:15:00Z"
-    }
+        "timestamp": "2026-03-03T18:15:00Z",
+    },
 ]
+
 
 class AnalyzeDocumentRequest(BaseModel):
     document_name: str = "7-12_Land_Extract_Demo.pdf"
     doc_type: str = "LAND_RECORD_EXTRACT"
     simulate_tamper: bool = False
+
 
 @router.get("/history")
 def get_forensic_audit_history():
@@ -47,8 +52,9 @@ def get_forensic_audit_history():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_documents_screened": 38400,
         "tamper_prevention_rate_pct": 99.8,
-        "recent_audits": RECENT_FORENSIC_AUDITS
+        "recent_audits": RECENT_FORENSIC_AUDITS,
     }
+
 
 @router.post("/analyze")
 def analyze_document_forensics(req: AnalyzeDocumentRequest):
@@ -71,11 +77,13 @@ def analyze_document_forensics(req: AnalyzeDocumentRequest):
                 "font_kerning_analysis": "ANOMALY DETECTED: Income number font weight diverges by 42% from template glyphs",
                 "qr_code_signature": "MISMATCH: QR payload does not match extracted document text hash",
                 "official_seal_verification": "INCONSISTENT: Sub-divisional stamp raster pattern shows digital clone stamp artifacts",
-                "metadata_exif_audit": "SUSPICIOUS: Document modified via third-party bitmap graphics editor"
+                "metadata_exif_audit": "SUSPICIOUS: Document modified via third-party bitmap graphics editor",
             },
             "recommendation": "HALT PIPELINE: Flag for physical Tehsildar manual scrutiny before workflow advancement.",
-            "digital_forensics_stamp": hashlib.sha256(f"TAMPER:{audit_id}:{now_iso}".encode()).hexdigest(),
-            "timestamp": now_iso
+            "digital_forensics_stamp": hashlib.sha256(
+                f"TAMPER:{audit_id}:{now_iso}".encode()
+            ).hexdigest(),
+            "timestamp": now_iso,
         }
     else:
         return {
@@ -88,9 +96,11 @@ def analyze_document_forensics(req: AnalyzeDocumentRequest):
                 "font_kerning_analysis": "PASS: Official government Unicode font glyphs perfectly aligned",
                 "qr_code_signature": "PASS: Cryptographic public key verification matches state revenue issuer",
                 "official_seal_verification": "PASS: Digital seal geometry and micro-print authentic",
-                "metadata_exif_audit": "PASS: Native government PDF generator binary confirmed"
+                "metadata_exif_audit": "PASS: Native government PDF generator binary confirmed",
             },
             "recommendation": "FAST-TRACK: Zero tamper indicators detected. Eligible for automated pipeline pass.",
-            "digital_forensics_stamp": hashlib.sha256(f"GENUINE:{audit_id}:{now_iso}".encode()).hexdigest(),
-            "timestamp": now_iso
+            "digital_forensics_stamp": hashlib.sha256(
+                f"GENUINE:{audit_id}:{now_iso}".encode()
+            ).hexdigest(),
+            "timestamp": now_iso,
         }

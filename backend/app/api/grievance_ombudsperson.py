@@ -1,16 +1,14 @@
 import random
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
-from backend.app.models.application import Application
-from backend.app.models.transaction import DepartmentTransaction
-from backend.app.models.grievance import Grievance
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api/nivarana", tags=["MahaSetu Nivarana (AI Grievance Ombudsperson)"])
+router = APIRouter(
+    prefix="/api/nivarana", tags=["MahaSetu Nivarana (AI Grievance Ombudsperson)"]
+)
 
 # Preset seed incidents for AI ombudsperson diagnostics
 SIMULATED_OMBUD_CASES = [
@@ -30,11 +28,11 @@ SIMULATED_OMBUD_CASES = [
             "severity": "HIGH",
             "sla_breach_risk": "BREACH_PREVENTED",
             "confidence_score": 97.4,
-            "recommended_remedy": "Automated schema mapping canonical normalization applied. Resubmit through Department C sanction queue."
+            "recommended_remedy": "Automated schema mapping canonical normalization applied. Resubmit through Department C sanction queue.",
         },
         "status": "AI_DIAGNOSED",
         "remediation_action": None,
-        "resolved_at": None
+        "resolved_at": None,
     },
     {
         "case_id": "NIVARANA-2026-092",
@@ -52,13 +50,14 @@ SIMULATED_OMBUD_CASES = [
             "severity": "MEDIUM",
             "sla_breach_risk": "SLA_ON_TRACK",
             "confidence_score": 99.1,
-            "recommended_remedy": "Unit transformation rule corrected to standard canonical Acres. Eligibility flag reset to APPROVED."
+            "recommended_remedy": "Unit transformation rule corrected to standard canonical Acres. Eligibility flag reset to APPROVED.",
         },
         "status": "RESOLVED",
         "remediation_action": "CORRECTED_AND_RESANCTIONED",
-        "resolved_at": "2026-03-02T14:30:00Z"
-    }
+        "resolved_at": "2026-03-02T14:30:00Z",
+    },
 ]
+
 
 class GrievanceSubmissionRequest(BaseModel):
     application_number: str
@@ -68,11 +67,13 @@ class GrievanceSubmissionRequest(BaseModel):
     category: str = "WORKFLOW_DELAY"
     description: str
 
+
 class RemediationActionRequest(BaseModel):
     case_id: str
     action: str  # "TRIGGER_WORKFLOW_RETRY", "ISSUE_FAST_TRACK_TOKEN", "MANUAL_OVERRIDE_APPROVE", "COMPENSATION_VOUCHER"
     officer_notes: str
     officer_name: str = "Ombudsperson Officer S. Patil"
+
 
 @router.get("/cases")
 def list_ombudsperson_cases(db: Session = Depends(get_db)):
@@ -83,13 +84,22 @@ def list_ombudsperson_cases(db: Session = Depends(get_db)):
         "portal": "MahaSetu Nivarana — AI Citizen Grievance Ombudsperson",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_cases_analyzed": len(SIMULATED_OMBUD_CASES),
-        "open_cases_count": sum(1 for c in SIMULATED_OMBUD_CASES if c["status"] != "RESOLVED"),
-        "average_root_cause_confidence": round(sum(c["ai_diagnostics"]["confidence_score"] for c in SIMULATED_OMBUD_CASES) / len(SIMULATED_OMBUD_CASES), 1),
-        "cases": SIMULATED_OMBUD_CASES
+        "open_cases_count": sum(
+            1 for c in SIMULATED_OMBUD_CASES if c["status"] != "RESOLVED"
+        ),
+        "average_root_cause_confidence": round(
+            sum(c["ai_diagnostics"]["confidence_score"] for c in SIMULATED_OMBUD_CASES)
+            / len(SIMULATED_OMBUD_CASES),
+            1,
+        ),
+        "cases": SIMULATED_OMBUD_CASES,
     }
 
+
 @router.post("/submit")
-def submit_citizen_grievance(req: GrievanceSubmissionRequest, db: Session = Depends(get_db)):
+def submit_citizen_grievance(
+    req: GrievanceSubmissionRequest, db: Session = Depends(get_db)
+):
     """
     Citizen submits a grievance. MahaSetu Nivarana immediately performs an automated
     deep trace against the transaction and audit log to find the root-cause.
@@ -106,15 +116,26 @@ def submit_citizen_grievance(req: GrievanceSubmissionRequest, db: Session = Depe
     elif "land" in desc_lower or "7/12" in desc_lower or "farm" in desc_lower:
         root_dept = "DEPT_A (Land Revenue Registry)"
         err_sig = "MAHABHULEKH_FEDERATION_LAG: 7/12 land extract mutation timestamp pending refresh"
-        remedy = "Force-refreshed digital registry cache from Mahabhulekh central server."
-    elif "money" in desc_lower or "bank" in desc_lower or "dbt" in desc_lower or "payment" in desc_lower:
+        remedy = (
+            "Force-refreshed digital registry cache from Mahabhulekh central server."
+        )
+    elif (
+        "money" in desc_lower
+        or "bank" in desc_lower
+        or "dbt" in desc_lower
+        or "payment" in desc_lower
+    ):
         root_dept = "DEPT_C (Social Welfare & DBT Bank Disbursal)"
-        err_sig = "PFMS_EKUBER_HANDSHAKE_DELAY: NPCI Aadhaar-seeded bank mapper sync pending"
+        err_sig = (
+            "PFMS_EKUBER_HANDSHAKE_DELAY: NPCI Aadhaar-seeded bank mapper sync pending"
+        )
         remedy = "Expedited NPCI NACH clearing batch with priority routing."
     else:
         root_dept = "DEPT_B (Eligibility Evaluation Directorate)"
         err_sig = "INTEROPERABILITY_QUEUE_LATENCY: Inter-department packet awaiting officer sign-off"
-        remedy = "Generated auto-escalation notice to Taluka Sub-Divisional Officer (SDO)."
+        remedy = (
+            "Generated auto-escalation notice to Taluka Sub-Divisional Officer (SDO)."
+        )
 
     new_case = {
         "case_id": case_id,
@@ -132,11 +153,11 @@ def submit_citizen_grievance(req: GrievanceSubmissionRequest, db: Session = Depe
             "severity": "HIGH",
             "sla_breach_risk": "BREACH_PREVENTED",
             "confidence_score": round(random.uniform(94.5, 99.2), 1),
-            "recommended_remedy": remedy
+            "recommended_remedy": remedy,
         },
         "status": "AI_DIAGNOSED",
         "remediation_action": None,
-        "resolved_at": None
+        "resolved_at": None,
     }
 
     SIMULATED_OMBUD_CASES.insert(0, new_case)
@@ -145,15 +166,18 @@ def submit_citizen_grievance(req: GrievanceSubmissionRequest, db: Session = Depe
         "status": "SUCCESS_RECORDED",
         "case": new_case,
         "ai_analysis_complete": True,
-        "message": f"Grievance {ticket_no} logged. AI root-cause analysis completed in 12ms. Correlated to {root_dept}."
+        "message": f"Grievance {ticket_no} logged. AI root-cause analysis completed in 12ms. Correlated to {root_dept}.",
     }
+
 
 @router.post("/remediate")
 def remediate_ombudsperson_case(req: RemediationActionRequest):
     """
     Administrative ombudsperson action: 1-click automated remediation.
     """
-    target = next((c for c in SIMULATED_OMBUD_CASES if c["case_id"] == req.case_id), None)
+    target = next(
+        (c for c in SIMULATED_OMBUD_CASES if c["case_id"] == req.case_id), None
+    )
     if not target:
         raise HTTPException(status_code=404, detail="Grievance case not found.")
 
@@ -167,5 +191,5 @@ def remediate_ombudsperson_case(req: RemediationActionRequest):
         "case_id": req.case_id,
         "remediation_action": req.action,
         "resolved_timestamp": target["resolved_at"],
-        "message": f"Case {req.case_id} successfully remediated via {req.action}. Citizen notification dispatched."
+        "message": f"Case {req.case_id} successfully remediated via {req.action}. Citizen notification dispatched.",
     }

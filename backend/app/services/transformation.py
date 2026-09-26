@@ -1,5 +1,5 @@
-from typing import Dict, Any, Tuple
-from backend.app.schemas.canonical import CanonicalCitizen, CanonicalAddress, CanonicalApplicationData
+from typing import Any
+
 
 class DataTransformationEngine:
     """
@@ -9,7 +9,7 @@ class DataTransformationEngine:
     """
 
     @classmethod
-    def to_canonical_from_dept_a(cls, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def to_canonical_from_dept_a(cls, payload: dict[str, Any]) -> dict[str, Any]:
         """Department A (Modern REST API format) -> Canonical Model"""
         return {
             "citizen": {
@@ -20,15 +20,15 @@ class DataTransformationEngine:
                 "address": {
                     "district": payload.get("district", "Pune"),
                     "state": "Maharashtra",
-                    "pincode": payload.get("pincode", "411001")
+                    "pincode": payload.get("pincode", "411001"),
                 },
                 "annualIncome": payload.get("annual_income", 180000),
-                "employmentStatus": payload.get("employment_status", "UNEMPLOYED")
+                "employmentStatus": payload.get("employment_status", "UNEMPLOYED"),
             }
         }
 
     @classmethod
-    def from_canonical_to_dept_a(cls, canonical: Dict[str, Any]) -> Dict[str, Any]:
+    def from_canonical_to_dept_a(cls, canonical: dict[str, Any]) -> dict[str, Any]:
         """Canonical Model -> Department A Schema"""
         citizen = canonical.get("citizen", {})
         addr = citizen.get("address", {})
@@ -38,11 +38,11 @@ class DataTransformationEngine:
             "dob": citizen.get("dateOfBirth", ""),
             "district": addr.get("district", "Pune"),
             "annual_income": citizen.get("annualIncome", 180000),
-            "state_code": "MH"
+            "state_code": "MH",
         }
 
     @classmethod
-    def to_canonical_from_dept_b(cls, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def to_canonical_from_dept_b(cls, payload: dict[str, Any]) -> dict[str, Any]:
         """Department B (Heterogeneous JSON) -> Canonical Model"""
         return {
             "citizen": {
@@ -52,15 +52,21 @@ class DataTransformationEngine:
                 "dateOfBirth": payload.get("date_of_birth", ""),
                 "address": {
                     "district": payload.get("residence_district", "Pune"),
-                    "state": "Maharashtra"
+                    "state": "Maharashtra",
                 },
-                "annualIncome": 180000 if payload.get("income_bracket") == "BELOW_2L" else 300000,
-                "employmentStatus": "UNEMPLOYED" if payload.get("employment_category") == "JOB_SEEKER" else "EMPLOYED"
+                "annualIncome": (
+                    180000 if payload.get("income_bracket") == "BELOW_2L" else 300000
+                ),
+                "employmentStatus": (
+                    "UNEMPLOYED"
+                    if payload.get("employment_category") == "JOB_SEEKER"
+                    else "EMPLOYED"
+                ),
             }
         }
 
     @classmethod
-    def from_canonical_to_dept_b(cls, canonical: Dict[str, Any]) -> Dict[str, Any]:
+    def from_canonical_to_dept_b(cls, canonical: dict[str, Any]) -> dict[str, Any]:
         """Canonical Model -> Department B Schema"""
         citizen = canonical.get("citizen", {})
         addr = citizen.get("address", {})
@@ -72,11 +78,20 @@ class DataTransformationEngine:
             "date_of_birth": citizen.get("dateOfBirth", ""),
             "residence_district": addr.get("district", "Pune"),
             "income_bracket": bracket,
-            "employment_category": "JOB_SEEKER" if citizen.get("employmentStatus") == "UNEMPLOYED" else "GENERAL"
+            "employment_category": (
+                "JOB_SEEKER"
+                if citizen.get("employmentStatus") == "UNEMPLOYED"
+                else "GENERAL"
+            ),
         }
 
     @classmethod
-    def from_canonical_to_dept_c(cls, canonical: Dict[str, Any], verified_identity: bool = True, verified_eligibility: bool = True) -> Dict[str, Any]:
+    def from_canonical_to_dept_c(
+        cls,
+        canonical: dict[str, Any],
+        verified_identity: bool = True,
+        verified_eligibility: bool = True,
+    ) -> dict[str, Any]:
         """Canonical Model -> Department C (Approval / Scheme Sanction Schema)"""
         citizen = canonical.get("citizen", {})
         addr = citizen.get("address", {})
@@ -88,11 +103,11 @@ class DataTransformationEngine:
             "scheme_code": "MH-EMP-2026",
             "identity_verified": verified_identity,
             "eligibility_verified": verified_eligibility,
-            "sanction_requested": True
+            "sanction_requested": True,
         }
 
     @classmethod
-    def to_canonical_from_legacy(cls, pipe_payload: str) -> Dict[str, Any]:
+    def to_canonical_from_legacy(cls, pipe_payload: str) -> dict[str, Any]:
         """
         Legacy Pipe-Delimited format (CIT001|Demo Citizen|Pune|MH) -> Canonical Model
         Demonstrates legacy system integration without rewriting legacy core.
@@ -110,17 +125,14 @@ class DataTransformationEngine:
                 "name": name,
                 "phone": "9999999999",
                 "dateOfBirth": "1998-05-12",
-                "address": {
-                    "district": district,
-                    "state": state
-                },
+                "address": {"district": district, "state": state},
                 "annualIncome": 180000,
-                "employmentStatus": "UNEMPLOYED"
+                "employmentStatus": "UNEMPLOYED",
             }
         }
 
     @classmethod
-    def from_canonical_to_legacy(cls, canonical: Dict[str, Any]) -> str:
+    def from_canonical_to_legacy(cls, canonical: dict[str, Any]) -> str:
         """Canonical Model -> Legacy Pipe Format"""
         citizen = canonical.get("citizen", {})
         addr = citizen.get("address", {})
@@ -131,7 +143,9 @@ class DataTransformationEngine:
         return f"{cid}|{name}|{district}|{state_code}"
 
     @classmethod
-    def trace_transformation(cls, source_dept: str, target_dept: str, raw_input: Any) -> Dict[str, Any]:
+    def trace_transformation(
+        cls, source_dept: str, target_dept: str, raw_input: Any
+    ) -> dict[str, Any]:
         """
         Provides a step-by-step audit trace for live demo inspection:
         Raw Source -> Adapter A -> Canonical Model -> Adapter B -> Final Output
@@ -162,5 +176,5 @@ class DataTransformationEngine:
             "stage_1_raw_source": raw_input,
             "stage_2_canonical_model": canonical,
             "stage_3_transformed_target": final_output,
-            "mapping_status": "VALIDATED"
+            "mapping_status": "VALIDATED",
         }

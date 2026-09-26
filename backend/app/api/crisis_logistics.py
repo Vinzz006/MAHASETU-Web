@@ -1,10 +1,13 @@
 import random
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/crisis-logistics", tags=["MahaRahat — Crisis Evacuation & Logistics Mesh"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/crisis-logistics",
+    tags=["MahaRahat — Crisis Evacuation & Logistics Mesh"],
+)
 
 DISASTER_EVACUATION_NODES = [
     {
@@ -16,7 +19,7 @@ DISASTER_EVACUATION_NODES = [
         "available_capacity": 2080,
         "icu_beds_available": 18,
         "ndrf_battalion_stationed": "5th Battalion NDRF (Pune Unit)",
-        "status": "OPERATIONAL_READY"
+        "status": "OPERATIONAL_READY",
     },
     {
         "node_id": "NODE-RAT-CHIPLUN-02",
@@ -27,7 +30,7 @@ DISASTER_EVACUATION_NODES = [
         "available_capacity": 700,
         "icu_beds_available": 6,
         "ndrf_battalion_stationed": "SDRF Coastal Command",
-        "status": "ELEVATED_ALERT"
+        "status": "ELEVATED_ALERT",
     },
     {
         "node_id": "NODE-KOL-SHIROLI-03",
@@ -38,14 +41,16 @@ DISASTER_EVACUATION_NODES = [
         "available_capacity": 3220,
         "icu_beds_available": 24,
         "ndrf_battalion_stationed": "Army Southern Command Unit",
-        "status": "OPERATIONAL_READY"
-    }
+        "status": "OPERATIONAL_READY",
+    },
 ]
+
 
 class DispatchCorridorRequest(BaseModel):
     source_node: str = "NODE-RAI-MAHAD-01"
     destination_cluster: str = "Poladpur Remote Tribal Hamlet"
     payload_type: str = "EMERGENCY_ANTIVENOM_AND_O_NEG_BLOOD"
+
 
 @router.get("/evacuation-nodes")
 def get_evacuation_logistics_nodes():
@@ -63,8 +68,9 @@ def get_evacuation_logistics_nodes():
         "current_sheltered_citizens": total_occ,
         "available_shelter_headroom": total_cap - total_occ,
         "available_icu_beds": total_icu,
-        "active_disaster_mesh_nodes": DISASTER_EVACUATION_NODES
+        "active_disaster_mesh_nodes": DISASTER_EVACUATION_NODES,
     }
+
 
 @router.post("/dispatch-corridor")
 def activate_drone_corridor(req: DispatchCorridorRequest):
@@ -84,5 +90,5 @@ def activate_drone_corridor(req: DispatchCorridorRequest):
         "estimated_flight_minutes": 14.5,
         "airspace_clearance": "AUTOMATED_DGCA_BEYOND_VISUAL_LINE_OF_SIGHT (BVLOS)",
         "ground_contact": "Local Primary Health Center (PHC) Medical Officer Alerted",
-        "timestamp": now_iso
+        "timestamp": now_iso,
     }

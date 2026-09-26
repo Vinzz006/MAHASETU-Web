@@ -1,19 +1,22 @@
-from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+import logging
+from datetime import datetime, timezone
 
+from backend.app.auth import get_current_user
 from backend.app.database import get_db
+from backend.app.events.publisher import publish_event
 from backend.app.models.application import Application
 from backend.app.models.escalation import SLAEscalation
 from backend.app.models.user import User
-from backend.app.auth import get_current_user
 from backend.app.services.audit import create_audit_log
 from backend.app.services.workflow import WorkflowEngine
-from backend.app.events.publisher import publish_event
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+logger = logging.getLogger("mahasetu.sla")
 
 router = APIRouter(prefix="/api/sla", tags=["Statutory Citizen Charter SLA Engine"])
+
 
 class SLAMonitorItem(BaseModel):
     application_id: str
@@ -27,9 +30,10 @@ class SLAMonitorItem(BaseModel):
     elapsed_days: float
     percentage_elapsed: float
     time_remaining_hours: float
-    severity: str # ON_TRACK, AT_RISK, BREACHED
+    severity: str  # ON_TRACK, AT_RISK, BREACHED
     is_escalated: bool
     created_at: datetime
+
 
 class SLASummaryResponse(BaseModel):
     compliance_rate: float
@@ -39,16 +43,22 @@ class SLASummaryResponse(BaseModel):
     at_risk_count: int
     breached_count: int
     avg_processing_days: float
-    applications: List[SLAMonitorItem]
+    applications: list[SLAMonitorItem]
+
 
 @router.get("/monitoring", response_model=SLASummaryResponse)
 def get_sla_monitoring_telemetry(db: Session = Depends(get_db)):
-    apps = db.query(Application).filter(Application.status != "COMPLETED").order_by(Application.created_at.asc()).all()
+    apps = (
+        db.query(Application)
+        .filter(Application.status != "COMPLETED")
+        .order_by(Application.created_at.asc())
+        .all()
+    )
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    sla_allotted_days = 3.0 # Statutory SLA for Employment Assistance
+    sla_allotted_days = 3.0  # Statutory SLA for Employment Assistance
 
-    items: List[SLAMonitorItem] = []
+    items: list[SLAMonitorItem] = []
     on_track = 0
     at_risk = 0
     breached = 0
@@ -73,28 +83,35 @@ def get_sla_monitoring_telemetry(db: Session = Depends(get_db)):
             on_track += 1
 
         # Check if already escalated
-        has_escalation = db.query(SLAEscalation).filter(
-            SLAEscalation.application_id == app.id,
-            SLAEscalation.status.in_(["PENDING_EXPEDITE", "EXPEDITED"])
-        ).first() is not None
+        has_escalation = (
+            db.query(SLAEscalation)
+            .filter(
+                SLAEscalation.application_id == app.id,
+                SLAEscalation.status.in_(["PENDING_EXPEDITE", "EXPEDITED"]),
+            )
+            .first()
+            is not None
+        )
 
         c_data = app.citizen_data or {}
-        items.append(SLAMonitorItem(
-            application_id=app.id,
-            application_number=app.application_number,
-            beneficiary_name=c_data.get("name", "Demo Citizen"),
-            service_id=app.service_id,
-            service_name="Maharashtra Employment & Skill Assistance Scheme",
-            current_department=app.current_department,
-            status=app.status,
-            sla_days=sla_allotted_days,
-            elapsed_days=elapsed_days,
-            percentage_elapsed=pct,
-            time_remaining_hours=remaining_hours,
-            severity=sev,
-            is_escalated=has_escalation,
-            created_at=app.created_at
-        ))
+        items.append(
+            SLAMonitorItem(
+                application_id=app.id,
+                application_number=app.application_number,
+                beneficiary_name=c_data.get("name", "Demo Citizen"),
+                service_id=app.service_id,
+                service_name="Maharashtra Employment & Skill Assistance Scheme",
+                current_department=app.current_department,
+                status=app.status,
+                sla_days=sla_allotted_days,
+                elapsed_days=elapsed_days,
+                percentage_elapsed=pct,
+                time_remaining_hours=remaining_hours,
+                severity=sev,
+                is_escalated=has_escalation,
+                created_at=app.created_at,
+            )
+        )
 
     total = len(items)
     compliance = round((((total - breached) / total) * 100.0) if total > 0 else 94.2, 1)
@@ -107,23 +124,31 @@ def get_sla_monitoring_telemetry(db: Session = Depends(get_db)):
         at_risk_count=at_risk,
         breached_count=breached,
         avg_processing_days=2.4,
-        applications=items
+        applications=items,
     )
+
 
 @router.post("/{application_id}/escalate")
 def escalate_application_sla(
     application_id: str,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: User | None = Depends(get_current_user),
 ):
-    app = db.query(Application).filter(
-        (Application.id == application_id) | (Application.application_number == application_id)
-    ).first()
+    app = (
+        db.query(Application)
+        .filter(
+            (Application.id == application_id)
+            | (Application.application_number == application_id)
+        )
+        .first()
+    )
 
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    escalation = db.query(SLAEscalation).filter(SLAEscalation.application_id == app.id).first()
+    escalation = (
+        db.query(SLAEscalation).filter(SLAEscalation.application_id == app.id).first()
+    )
     if not escalation:
         escalation = SLAEscalation(
             application_id=app.id,
@@ -136,7 +161,7 @@ def escalate_application_sla(
             escalated_to="Shri V. Patil (District Employment Officer, Pune)",
             status="EXPEDITED",
             notes="Statutory 72-hour threshold approached. Auto-prioritized by MahaSetu SLA Engine.",
-            expedited_at=datetime.now(timezone.utc).replace(tzinfo=None)
+            expedited_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(escalation)
     else:
@@ -150,28 +175,37 @@ def escalate_application_sla(
         # Advance workflow forward
         try:
             WorkflowEngine.advance_step(db, app.id, actor_id="SLA_ENGINE_EXPEDITE")
-        except Exception:
-            pass
+        except (HTTPException, ValueError, RuntimeError) as exc:
+            logger.debug("SLA auto-advance skipped for application %s: %s", app.id, exc)
 
     db.commit()
 
     actor = current_user.name if current_user else "SLA_EXPEDITE_ENGINE"
-    publish_event("SLA_EXPEDITED", app.application_number, app.current_department, {"escalated_to": escalation.escalated_to})
+    publish_event(
+        "SLA_EXPEDITED",
+        app.application_number,
+        app.current_department,
+        {"escalated_to": escalation.escalated_to},
+    )
     create_audit_log(
         db=db,
         actor_id=actor,
         action="SLA_EXPEDITE_TRIGGERED",
         resource="SLA_ENGINE",
         application_id=app.id,
-        metadata={"escalated_to": escalation.escalated_to, "target_dept": app.current_department}
+        metadata={
+            "escalated_to": escalation.escalated_to,
+            "target_dept": app.current_department,
+        },
     )
 
     return {
         "status": "EXPEDITED",
         "message": f"Application {app.application_number} elevated to priority queue for {escalation.escalated_to}.",
         "escalation_id": escalation.id,
-        "target_department": app.current_department
+        "target_department": app.current_department,
     }
+
 
 @router.get("/escalations")
 def list_sla_escalations(db: Session = Depends(get_db)):
@@ -180,7 +214,9 @@ def list_sla_escalations(db: Session = Depends(get_db)):
         {
             "id": e.id,
             "application_id": e.application_id,
-            "application_number": e.application.application_number if e.application else "UNKNOWN",
+            "application_number": (
+                e.application.application_number if e.application else "UNKNOWN"
+            ),
             "service_id": e.service_id,
             "target_department": e.target_department,
             "sla_days_allotted": e.sla_days_allotted,
@@ -190,7 +226,7 @@ def list_sla_escalations(db: Session = Depends(get_db)):
             "status": e.status,
             "notes": e.notes,
             "created_at": e.created_at.isoformat(),
-            "expedited_at": e.expedited_at.isoformat() if e.expedited_at else None
+            "expedited_at": e.expedited_at.isoformat() if e.expedited_at else None,
         }
         for e in items
     ]

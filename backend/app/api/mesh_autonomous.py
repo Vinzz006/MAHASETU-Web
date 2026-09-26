@@ -1,11 +1,12 @@
-import time
-import random
 from datetime import datetime, timezone
-from typing import Dict, Any, List
-from pydantic import BaseModel
-from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/mesh-autonomous", tags=["MahaChaitanya — Autonomous Self-Regulating Mesh"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/mesh-autonomous",
+    tags=["MahaChaitanya — Autonomous Self-Regulating Mesh"],
+)
 
 MESH_NODES_STATUS = [
     {
@@ -15,7 +16,7 @@ MESH_NODES_STATUS = [
         "latency_p99_ms": 42,
         "circuit_state": "CLOSED_OPTIMAL",
         "auto_throttle_factor": 1.0,
-        "health_score": 99.2
+        "health_score": 99.2,
     },
     {
         "node_id": "NODE-DEPT-B-CONNECTOR",
@@ -24,7 +25,7 @@ MESH_NODES_STATUS = [
         "latency_p99_ms": 118,
         "circuit_state": "ADAPTIVE_DAMPENED",
         "auto_throttle_factor": 0.85,
-        "health_score": 94.6
+        "health_score": 94.6,
     },
     {
         "node_id": "NODE-DEPT-C-CONNECTOR",
@@ -33,7 +34,7 @@ MESH_NODES_STATUS = [
         "latency_p99_ms": 55,
         "circuit_state": "CLOSED_OPTIMAL",
         "auto_throttle_factor": 1.0,
-        "health_score": 98.7
+        "health_score": 98.7,
     },
     {
         "node_id": "NODE-GRAMIN-EDGE-SYNC",
@@ -42,12 +43,14 @@ MESH_NODES_STATUS = [
         "latency_p99_ms": 28,
         "circuit_state": "BATCH_STANDBY",
         "auto_throttle_factor": 1.0,
-        "health_score": 99.8
-    }
+        "health_score": 99.8,
+    },
 ]
+
 
 class TuneMeshRequest(BaseModel):
     policy_mode: str = "AGGRESSIVE_STABILIZATION"
+
 
 @router.get("/health")
 def get_autonomous_mesh_health():
@@ -66,9 +69,10 @@ def get_autonomous_mesh_health():
         "recent_auto_heal_actions": [
             "Dynamically increased Department B queue worker concurrency (+4 threads)",
             "Applied exponential backoff jitter on non-critical analytics payloads",
-            "Auto-scaled Gramin Edge Sync batch window from 5m to 2m during peak morning hours"
-        ]
+            "Auto-scaled Gramin Edge Sync batch window from 5m to 2m during peak morning hours",
+        ],
     }
+
 
 @router.post("/tune")
 def trigger_mesh_auto_tuning(req: TuneMeshRequest):
@@ -83,9 +87,9 @@ def trigger_mesh_auto_tuning(req: TuneMeshRequest):
         "rebalancing_actions_executed": [
             "Re-weighted Department B traffic routing ratio to 60/40 primary/backup replica",
             "Cleared transient in-flight socket buffers on PFMS APBS clearing bridge",
-            "Recalibrated circuit breaker trip threshold to 450ms dynamic window"
+            "Recalibrated circuit breaker trip threshold to 450ms dynamic window",
         ],
         "stabilized_p99_latency_ms": 38.5,
         "cluster_throughput_gain_pct": 14.8,
-        "timestamp": now_iso
+        "timestamp": now_iso,
     }

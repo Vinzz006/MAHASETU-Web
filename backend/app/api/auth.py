@@ -1,37 +1,51 @@
 import uuid
-from typing import List
+
+from backend.app.auth import (
+    create_access_token,
+    get_current_user,
+    get_password_hash,
+    require_roles,
+    verify_password,
+)
+from backend.app.database import get_db
+from backend.app.firebase import verify_firebase_id_token
+from backend.app.models.user import User
+from backend.app.schemas.auth import (
+    BulkApproveRequest,
+    BulkApproveResponse,
+    LoginRequest,
+    PendingRegistrationItem,
+    RegisterRequest,
+    RegistrationResponse,
+    RejectRegistrationRequest,
+    TokenResponse,
+    UserResponse,
+)
+from backend.app.services.audit import create_audit_log
+from backend.app.services.rate_limiter import login_rate_limiter, register_rate_limiter
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from backend.app.database import get_db
-from backend.app.models.user import User
-from backend.app.schemas.auth import (
-    LoginRequest, TokenResponse, UserResponse,
-    RegisterRequest, RegistrationResponse,
-    PendingRegistrationItem, RejectRegistrationRequest,
-    BulkApproveRequest, BulkApproveResponse
-)
-from backend.app.auth import (
-    verify_password, get_password_hash, create_access_token,
-    get_current_user, require_roles
-)
-from backend.app.firebase import verify_firebase_id_token
-from backend.app.services.audit import create_audit_log
-from backend.app.services.rate_limiter import login_rate_limiter, register_rate_limiter
-
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
-@router.post("/register", response_model=RegistrationResponse, dependencies=[Depends(register_rate_limiter)])
+
+@router.post(
+    "/register",
+    response_model=RegistrationResponse,
+    dependencies=[Depends(register_rate_limiter)],
+)
 def register_citizen(req: RegisterRequest, db: Session = Depends(get_db)):
     """Registers a new citizen via Firebase Auth token or profile credentials, defaulting to PENDING status."""
-    existing_user = db.query(User).filter(
-        (User.mobile == req.mobile) | (User.email == req.email)
-    ).first()
+    existing_user = (
+        db.query(User)
+        .filter((User.mobile == req.mobile) | (User.email == req.email))
+        .first()
+    )
 
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A user with this mobile number or email already exists."
+            detail="A user with this mobile number or email already exists.",
         )
 
     firebase_uid = None
@@ -52,7 +66,7 @@ def register_citizen(req: RegisterRequest, db: Session = Depends(get_db)):
         role="CITIZEN",
         department_id=None,
         registration_status="PENDING",
-        hashed_password=hashed_pwd
+        hashed_password=hashed_pwd,
     )
     db.add(new_user)
     db.commit()
@@ -68,8 +82,8 @@ def register_citizen(req: RegisterRequest, db: Session = Depends(get_db)):
             "name": new_user.name,
             "email": new_user.email,
             "role": new_user.role,
-            "status": "PENDING"
-        }
+            "status": "PENDING",
+        },
     )
 
     return RegistrationResponse(
@@ -79,14 +93,19 @@ def register_citizen(req: RegisterRequest, db: Session = Depends(get_db)):
         email=new_user.email,
         role=new_user.role,
         registration_status=new_user.registration_status,
-        message="Registration submitted successfully. Account is pending administrative approval."
+        message="Registration submitted successfully. Account is pending administrative approval.",
     )
 
-@router.post("/login", response_model=TokenResponse, dependencies=[Depends(login_rate_limiter)])
+
+@router.post(
+    "/login", response_model=TokenResponse, dependencies=[Depends(login_rate_limiter)]
+)
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(
-        (User.mobile == req.username) | (User.email == req.username)
-    ).first()
+    user = (
+        db.query(User)
+        .filter((User.mobile == req.username) | (User.email == req.username))
+        .first()
+    )
 
     if not user or not verify_password(req.password, user.hashed_password):
         create_audit_log(
@@ -94,14 +113,16 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
             actor_id=user.id if user else "UNKNOWN",
             action="USER_LOGIN_FAILED",
             resource="AUTH",
-            metadata={"username": req.username}
+            metadata={"username": req.username},
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username, mobile or password"
+            detail="Incorrect username, mobile or password",
         )
 
-    token = create_access_token(data={"sub": user.id, "role": user.role, "name": user.name})
+    token = create_access_token(
+        data={"sub": user.id, "role": user.role, "name": user.name}
+    )
     return TokenResponse(
         access_token=token,
         token_type="bearer",
@@ -109,8 +130,9 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         name=user.name,
         role=user.role,
         department_id=user.department_id,
-        registration_status=user.registration_status
+        registration_status=user.registration_status,
     )
+
 
 @router.get("/me", response_model=UserResponse)
 def get_profile(current_user: User = Depends(get_current_user)):
@@ -123,18 +145,22 @@ def get_profile(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         role=current_user.role,
         department_id=current_user.department_id,
-        registration_status=current_user.registration_status
+        registration_status=current_user.registration_status,
     )
 
-@router.get("/registrations/pending", response_model=List[PendingRegistrationItem])
+
+@router.get("/registrations/pending", response_model=list[PendingRegistrationItem])
 def get_pending_registrations(
     db: Session = Depends(get_db),
-    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"])),
 ):
     """Admin-only endpoint to view pending citizen registrations."""
-    pending_users = db.query(User).filter(
-        User.registration_status == "PENDING"
-    ).order_by(User.created_at.desc()).all()
+    pending_users = (
+        db.query(User)
+        .filter(User.registration_status == "PENDING")
+        .order_by(User.created_at.desc())
+        .all()
+    )
 
     return [
         PendingRegistrationItem(
@@ -144,16 +170,17 @@ def get_pending_registrations(
             email=u.email,
             role=u.role,
             registration_status=u.registration_status,
-            created_at=u.created_at
+            created_at=u.created_at,
         )
         for u in pending_users
     ]
+
 
 @router.post("/registrations/{user_id}/approve")
 def approve_registration(
     user_id: str,
     db: Session = Depends(get_db),
-    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"])),
 ):
     """Admin-only endpoint to approve a pending registration."""
     target_user = db.query(User).filter(User.id == user_id).first()
@@ -168,21 +195,22 @@ def approve_registration(
         actor_id=admin_user.id,
         action="USER_REGISTRATION_APPROVED",
         resource="USER",
-        metadata={"target_user_id": target_user.id, "email": target_user.email}
+        metadata={"target_user_id": target_user.id, "email": target_user.email},
     )
 
     return {
         "status": "SUCCESS",
         "message": f"User {target_user.name} ({target_user.id}) approved successfully.",
         "user_id": target_user.id,
-        "registration_status": "APPROVED"
+        "registration_status": "APPROVED",
     }
+
 
 @router.post("/registrations/bulk-approve", response_model=BulkApproveResponse)
 def bulk_approve_registrations(
     req: BulkApproveRequest,
     db: Session = Depends(get_db),
-    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"])),
 ):
     """Admin-only endpoint to approve multiple pending registrations in batch."""
     approved_ids = []
@@ -198,7 +226,11 @@ def bulk_approve_registrations(
                 actor_id=admin_user.id,
                 action="USER_REGISTRATION_APPROVED",
                 resource="USER",
-                metadata={"target_user_id": user.id, "email": user.email, "batch": True}
+                metadata={
+                    "target_user_id": user.id,
+                    "email": user.email,
+                    "batch": True,
+                },
             )
         else:
             failed_ids.append(uid)
@@ -210,15 +242,16 @@ def bulk_approve_registrations(
         status="SUCCESS",
         approved_count=len(approved_ids),
         approved_ids=approved_ids,
-        failed_ids=failed_ids
+        failed_ids=failed_ids,
     )
+
 
 @router.post("/registrations/{user_id}/reject")
 def reject_registration(
     user_id: str,
     req: RejectRegistrationRequest,
     db: Session = Depends(get_db),
-    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"]))
+    admin_user: User = Depends(require_roles(["ADMIN", "SYSTEM_ADMIN"])),
 ):
     """Admin-only endpoint to reject a pending registration with a stored audit reason."""
     target_user = db.query(User).filter(User.id == user_id).first()
@@ -236,8 +269,8 @@ def reject_registration(
         metadata={
             "target_user_id": target_user.id,
             "email": target_user.email,
-            "rejection_reason": req.reason
-        }
+            "rejection_reason": req.reason,
+        },
     )
 
     return {
@@ -245,42 +278,46 @@ def reject_registration(
         "message": f"User {target_user.name} registration rejected.",
         "user_id": target_user.id,
         "registration_status": "REJECTED",
-        "rejection_reason": req.reason
+        "rejection_reason": req.reason,
     }
+
 
 @router.get("/personas")
 def get_demo_personas(
     db: Session = Depends(get_db),
-    admin_user: User = Depends(require_roles(["SYSTEM_ADMIN"]))
+    admin_user: User = Depends(require_roles(["SYSTEM_ADMIN"])),
 ):
     """Returns quick-switch credentials and tokens strictly for local demo evaluation when authenticated as SYSTEM_ADMIN."""
     from backend.app.firebase import is_demo_mode
+
     if not is_demo_mode():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Demo personas endpoint is disabled in production mode."
+            detail="Demo personas endpoint is disabled in production mode.",
         )
     users = db.query(User).all()
     personas = []
     for u in users:
         token = create_access_token(data={"sub": u.id, "role": u.role, "name": u.name})
-        personas.append({
-            "id": u.id,
-            "name": u.name,
-            "role": u.role,
-            "email": u.email,
-            "mobile": u.mobile,
-            "department_id": u.department_id,
-            "registration_status": u.registration_status,
-            "token": token
-        })
+        personas.append(
+            {
+                "id": u.id,
+                "name": u.name,
+                "role": u.role,
+                "email": u.email,
+                "mobile": u.mobile,
+                "department_id": u.department_id,
+                "registration_status": u.registration_status,
+                "token": token,
+            }
+        )
 
     create_audit_log(
         db=db,
         actor_id=admin_user.id,
         action="DEMO_PERSONAS_ACCESSED",
         resource="AUTH_PERSONAS",
-        metadata={"user_count": len(personas), "caller_role": admin_user.role}
+        metadata={"user_count": len(personas), "caller_role": admin_user.role},
     )
 
     return personas

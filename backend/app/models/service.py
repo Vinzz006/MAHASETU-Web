@@ -1,12 +1,11 @@
-import uuid
-from datetime import datetime
-from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, JSON
 from backend.app.database import Base, utc_now
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
+
 
 class Service(Base):
     __tablename__ = "services"
 
-    id = Column(String(64), primary_key=True) # e.g. "employment-support"
+    id = Column(String(64), primary_key=True)  # e.g. "employment-support"
     name = Column(String(255), nullable=False)
     name_mr = Column(String(255), nullable=True)
     department = Column(String(255), nullable=False)

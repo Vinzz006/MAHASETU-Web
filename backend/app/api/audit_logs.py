@@ -1,37 +1,38 @@
-import io
 import csv
+import io
 import json
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
 
-from fastapi import APIRouter, Depends, Query, HTTPException, status
-from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
-
-from backend.app.database import get_db
-from backend.app.models.user import User
-from backend.app.models.audit import AuditLog
 from backend.app.auth import require_roles
+from backend.app.database import get_db
+from backend.app.models.audit import AuditLog
+from backend.app.models.user import User
 from backend.app.services.audit import verify_audit_log_integrity
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/audit-logs", tags=["Audit & Statutory Compliance"])
 
 AUDIT_ROLES = ["AUDITOR", "ADMIN", "SYSTEM_ADMIN"]
 
+
 @router.get("")
 def query_audit_logs(
-    application_id: Optional[str] = Query(None, description="Filter by Application ID"),
-    actor_id: Optional[str] = Query(None, description="Filter by Actor / Officer ID"),
-    action: Optional[str] = Query(None, description="Filter by Action Type"),
-    resource: Optional[str] = Query(None, description="Filter by Resource Category"),
-    search: Optional[str] = Query(None, description="Free-text search in action, actor, or resource"),
-    from_date: Optional[str] = Query(None, description="ISO from date"),
-    to_date: Optional[str] = Query(None, description="ISO to date"),
+    application_id: str | None = Query(None, description="Filter by Application ID"),
+    actor_id: str | None = Query(None, description="Filter by Actor / Officer ID"),
+    action: str | None = Query(None, description="Filter by Action Type"),
+    resource: str | None = Query(None, description="Filter by Resource Category"),
+    search: str | None = Query(
+        None, description="Free-text search in action, actor, or resource"
+    ),
+    from_date: str | None = Query(None, description="ISO from date"),
+    to_date: str | None = Query(None, description="ISO to date"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(AUDIT_ROLES))
+    current_user: User = Depends(require_roles(AUDIT_ROLES)),
 ):
     """
     Queries immutable audit records with comprehensive statutory filters.
@@ -54,18 +55,22 @@ def query_audit_logs(
                 AuditLog.action.ilike(search_pattern),
                 AuditLog.actor_id.ilike(search_pattern),
                 AuditLog.resource.ilike(search_pattern),
-                AuditLog.application_id.ilike(search_pattern)
+                AuditLog.application_id.ilike(search_pattern),
             )
         )
     if from_date:
         try:
-            dt_from = datetime.fromisoformat(from_date.replace("Z", "+00:00")).replace(tzinfo=None)
+            dt_from = datetime.fromisoformat(from_date.replace("Z", "+00:00")).replace(
+                tzinfo=None
+            )
             query = query.filter(AuditLog.timestamp >= dt_from)
         except ValueError:
             pass
     if to_date:
         try:
-            dt_to = datetime.fromisoformat(to_date.replace("Z", "+00:00")).replace(tzinfo=None)
+            dt_to = datetime.fromisoformat(to_date.replace("Z", "+00:00")).replace(
+                tzinfo=None
+            )
             query = query.filter(AuditLog.timestamp <= dt_to)
         except ValueError:
             pass
@@ -76,36 +81,34 @@ def query_audit_logs(
     formatted = []
     for r in records:
         is_verified = verify_audit_log_integrity(r)
-        formatted.append({
-            "id": r.id,
-            "application_id": r.application_id,
-            "actor_id": r.actor_id,
-            "action": r.action,
-            "resource": r.resource,
-            "metadata": r.metadata_json or {},
-            "tamper_hash": r.tamper_hash or "PRE_MIGRATION_ENTRY",
-            "tamper_verified": is_verified,
-            "timestamp": r.timestamp.isoformat()
-        })
+        formatted.append(
+            {
+                "id": r.id,
+                "application_id": r.application_id,
+                "actor_id": r.actor_id,
+                "action": r.action,
+                "resource": r.resource,
+                "metadata": r.metadata_json or {},
+                "tamper_hash": r.tamper_hash or "PRE_MIGRATION_ENTRY",
+                "tamper_verified": is_verified,
+                "timestamp": r.timestamp.isoformat(),
+            }
+        )
 
-    return {
-        "total": total,
-        "skip": skip,
-        "limit": limit,
-        "logs": formatted
-    }
+    return {"total": total, "skip": skip, "limit": limit, "logs": formatted}
+
 
 @router.get("/summary")
 def get_audit_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(AUDIT_ROLES))
+    current_user: User = Depends(require_roles(AUDIT_ROLES)),
 ):
     """Returns statutory compliance scorecard and category counts."""
     total = db.query(AuditLog).count()
     all_logs = db.query(AuditLog).all()
 
-    action_counts: Dict[str, int] = {}
-    resource_counts: Dict[str, int] = {}
+    action_counts: dict[str, int] = {}
+    resource_counts: dict[str, int] = {}
     verified_count = 0
 
     for l in all_logs:
@@ -120,23 +123,26 @@ def get_audit_summary(
         "total_audit_events": total,
         "tamper_verified_count": verified_count,
         "tamper_verification_rate": round(verification_rate, 2),
-        "statutory_compliance_status": "FULLY_COMPLIANT" if verification_rate >= 99.9 else "AUDIT_WARNING",
+        "statutory_compliance_status": (
+            "FULLY_COMPLIANT" if verification_rate >= 99.9 else "AUDIT_WARNING"
+        ),
         "events_by_action": action_counts,
         "events_by_resource": resource_counts,
         "immutable_storage_policy": "APPEND_ONLY_CRYPTOGRAPHICALLY_VERIFIED",
-        "compliance_standard": "MAHARASHTRA_CYBER_AND_DPDP_ACT_2023"
+        "compliance_standard": "MAHARASHTRA_CYBER_AND_DPDP_ACT_2023",
     }
+
 
 @router.get("/export/csv")
 def export_audit_csv(
-    application_id: Optional[str] = Query(None),
-    actor_id: Optional[str] = Query(None),
-    action: Optional[str] = Query(None),
-    resource: Optional[str] = Query(None),
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
+    application_id: str | None = Query(None),
+    actor_id: str | None = Query(None),
+    action: str | None = Query(None),
+    resource: str | None = Query(None),
+    from_date: str | None = Query(None),
+    to_date: str | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(AUDIT_ROLES))
+    current_user: User = Depends(require_roles(AUDIT_ROLES)),
 ):
     """Streams a formal compliance audit trail CSV export."""
     query = db.query(AuditLog)
@@ -156,32 +162,36 @@ def export_audit_csv(
     writer = csv.writer(output)
 
     # Compliance CSV Header
-    writer.writerow([
-        "Timestamp_UTC",
-        "Log_UUID",
-        "Actor_ID",
-        "Action_Type",
-        "Resource_Domain",
-        "Application_Reference",
-        "SHA256_Tamper_Hash",
-        "Integrity_Verified",
-        "Metadata_JSON"
-    ])
+    writer.writerow(
+        [
+            "Timestamp_UTC",
+            "Log_UUID",
+            "Actor_ID",
+            "Action_Type",
+            "Resource_Domain",
+            "Application_Reference",
+            "SHA256_Tamper_Hash",
+            "Integrity_Verified",
+            "Metadata_JSON",
+        ]
+    )
 
     for r in records:
         is_verified = verify_audit_log_integrity(r)
         meta_str = json.dumps(r.metadata_json or {}, separators=(",", ":"))
-        writer.writerow([
-            r.timestamp.isoformat(),
-            r.id,
-            r.actor_id,
-            r.action,
-            r.resource,
-            r.application_id or "N/A",
-            r.tamper_hash or "PRE_MIGRATION",
-            "VERIFIED" if is_verified else "TAMPER_DETECTED",
-            meta_str
-        ])
+        writer.writerow(
+            [
+                r.timestamp.isoformat(),
+                r.id,
+                r.actor_id,
+                r.action,
+                r.resource,
+                r.application_id or "N/A",
+                r.tamper_hash or "PRE_MIGRATION",
+                "VERIFIED" if is_verified else "TAMPER_DETECTED",
+                meta_str,
+            ]
+        )
 
     csv_data = output.getvalue()
     filename = f"mahasetu_compliance_audit_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
@@ -191,16 +201,17 @@ def export_audit_csv(
         media_type="text/csv",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
-            "X-Compliance-Standard": "MH-GOV-AUDIT-v2.1"
-        }
+            "X-Compliance-Standard": "MH-GOV-AUDIT-v2.1",
+        },
     )
+
 
 @router.get("/export/json")
 def export_audit_json(
-    application_id: Optional[str] = Query(None),
-    action: Optional[str] = Query(None),
+    application_id: str | None = Query(None),
+    action: str | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(AUDIT_ROLES))
+    current_user: User = Depends(require_roles(AUDIT_ROLES)),
 ):
     """Streams a formal JSON compliance audit export."""
     query = db.query(AuditLog)
@@ -218,7 +229,7 @@ def export_audit_json(
             "exported_by": current_user.name,
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "record_count": len(records),
-            "integrity_policy": "APPEND_ONLY_SHA256"
+            "integrity_policy": "APPEND_ONLY_SHA256",
         },
         "records": [
             {
@@ -230,10 +241,10 @@ def export_audit_json(
                 "application_id": r.application_id,
                 "tamper_hash": r.tamper_hash,
                 "tamper_verified": verify_audit_log_integrity(r),
-                "metadata": r.metadata_json or {}
+                "metadata": r.metadata_json or {},
             }
             for r in records
-        ]
+        ],
     }
 
     json_str = json.dumps(dump, indent=2)
@@ -242,7 +253,5 @@ def export_audit_json(
     return StreamingResponse(
         io.BytesIO(json_str.encode("utf-8")),
         media_type="application/json",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

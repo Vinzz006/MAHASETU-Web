@@ -1,10 +1,11 @@
-import uuid
 from datetime import datetime, timezone
-from typing import List, Dict, Any
-from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException
 
-router = APIRouter(prefix="/api/fraud", tags=["Cross-Department Fraud & Anomaly Detector"])
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/fraud", tags=["Cross-Department Fraud & Anomaly Detector"]
+)
 
 # In-memory store initialized with realistic cross-department benchmark anomalies
 ANOMALIES_DB = [
@@ -21,11 +22,11 @@ ANOMALIES_DB = [
             "portal_declared_income": 180000,
             "department_b_actual_income": 650000,
             "income_differential_pct": 261.1,
-            "source_department": "DEPT_B_REVENUE"
+            "source_department": "DEPT_B_REVENUE",
         },
         "status": "FLAGGED_FOR_REVIEW",
         "detected_at": "2026-09-02T16:30:00Z",
-        "action_taken": None
+        "action_taken": None,
     },
     {
         "id": "ANOM-2026-002",
@@ -40,11 +41,11 @@ ANOMALIES_DB = [
             "gat_number": "142/A",
             "taluka": "Niphad",
             "conflicting_application": "MH-APP-2026-000172",
-            "source_department": "LEGACY_MAINFRAME_LAND_712"
+            "source_department": "LEGACY_MAINFRAME_LAND_712",
         },
         "status": "FLAGGED_FOR_REVIEW",
         "detected_at": "2026-09-02T17:15:00Z",
-        "action_taken": None
+        "action_taken": None,
     },
     {
         "id": "ANOM-2026-003",
@@ -59,23 +60,33 @@ ANOMALIES_DB = [
             "portal_dob": "1999-04-12",
             "authoritative_dept_a_dob": "1996-04-12",
             "age_differential_years": 3,
-            "source_department": "DEPT_A_CIVIL_REGISTRY"
+            "source_department": "DEPT_A_CIVIL_REGISTRY",
         },
         "status": "CLEARED_BY_OFFICER",
         "detected_at": "2026-09-02T15:00:00Z",
-        "action_taken": "Verified clerical error in portal entry. Birth certificate cross-matched. Cleared by Officer OFF-001."
-    }
+        "action_taken": "Verified clerical error in portal entry. Birth certificate cross-matched. Cleared by Officer OFF-001.",
+    },
 ]
+
 
 class AnomalyResolveRequest(BaseModel):
     action: str  # "FREEZE_BENEFIT", "CLEAR_ANOMALY", "REQUEST_CLARIFICATION"
     officer_notes: str
 
+
 @router.get("/anomalies")
 def get_fraud_anomalies():
     total = len(ANOMALIES_DB)
-    high_risk = sum(1 for a in ANOMALIES_DB if a["severity"] == "HIGH" and a["status"] == "FLAGGED_FOR_REVIEW")
-    medium_risk = sum(1 for a in ANOMALIES_DB if a["severity"] == "MEDIUM" and a["status"] == "FLAGGED_FOR_REVIEW")
+    high_risk = sum(
+        1
+        for a in ANOMALIES_DB
+        if a["severity"] == "HIGH" and a["status"] == "FLAGGED_FOR_REVIEW"
+    )
+    medium_risk = sum(
+        1
+        for a in ANOMALIES_DB
+        if a["severity"] == "MEDIUM" and a["status"] == "FLAGGED_FOR_REVIEW"
+    )
     cleared = sum(1 for a in ANOMALIES_DB if a["status"] == "CLEARED_BY_OFFICER")
     frozen = sum(1 for a in ANOMALIES_DB if a["status"] == "BENEFIT_FROZEN")
 
@@ -86,10 +97,11 @@ def get_fraud_anomalies():
             "pending_medium_risk": medium_risk,
             "cleared_by_officer": cleared,
             "benefits_frozen": frozen,
-            "estimated_fraud_loss_prevented_inr": 2450000
+            "estimated_fraud_loss_prevented_inr": 2450000,
         },
-        "anomalies": ANOMALIES_DB
+        "anomalies": ANOMALIES_DB,
     }
+
 
 @router.post("/{anomaly_id}/resolve")
 def resolve_fraud_anomaly(anomaly_id: str, req: AnomalyResolveRequest):
@@ -99,16 +111,19 @@ def resolve_fraud_anomaly(anomaly_id: str, req: AnomalyResolveRequest):
 
     if req.action == "FREEZE_BENEFIT":
         anomaly["status"] = "BENEFIT_FROZEN"
-        anomaly["action_taken"] = f"Welfare benefit frozen. Legal audit triggered: {req.officer_notes}"
+        anomaly["action_taken"] = (
+            f"Welfare benefit frozen. Legal audit triggered: {req.officer_notes}"
+        )
     elif req.action == "CLEAR_ANOMALY":
         anomaly["status"] = "CLEARED_BY_OFFICER"
-        anomaly["action_taken"] = f"Anomaly cleared with officer justification: {req.officer_notes}"
+        anomaly["action_taken"] = (
+            f"Anomaly cleared with officer justification: {req.officer_notes}"
+        )
     else:
         anomaly["status"] = "PENDING_CLARIFICATION"
-        anomaly["action_taken"] = f"Clarification requested from citizen: {req.officer_notes}"
+        anomaly["action_taken"] = (
+            f"Clarification requested from citizen: {req.officer_notes}"
+        )
 
     anomaly["resolved_at"] = datetime.now(timezone.utc).isoformat()
-    return {
-        "status": "SUCCESS",
-        "anomaly": anomaly
-    }
+    return {"status": "SUCCESS", "anomaly": anomaly}

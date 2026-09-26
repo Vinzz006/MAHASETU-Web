@@ -1,0 +1,11 @@
+[lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.File",
+    "fastapi.params.File",
+    "backend.app.auth.require_roles",
+    "require_roles",
+    "Depends",
+    "File",
+]

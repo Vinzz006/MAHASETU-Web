@@ -1,11 +1,13 @@
 import time
 from collections import defaultdict
 from threading import Lock
-from typing import Dict, List
+
+from backend.app.config import get_settings
+from jose import JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from backend.app.config import get_settings
+
 
 class AppWideRateLimitMiddleware(BaseHTTPMiddleware):
     """
@@ -15,11 +17,12 @@ class AppWideRateLimitMiddleware(BaseHTTPMiddleware):
     - Department Officers & Staff: 300 req/min
     Bypassed in automated testing and on health checks.
     """
+
     def __init__(self, app):
         super().__init__(app)
-        self.history: Dict[str, List[float]] = defaultdict(list)
+        self.history: dict[str, list[float]] = defaultdict(list)
         self.lock = Lock()
-        self.window = 60 # 1 minute window
+        self.window = 60  # 1 minute window
 
     async def dispatch(self, request: Request, call_next):
         settings = get_settings()
@@ -38,22 +41,34 @@ class AppWideRateLimitMiddleware(BaseHTTPMiddleware):
             client_ip = forwarded.split(",")[0].strip()
 
         # Check role if token present
-        limit = 60 # Default public tier
+        limit = 60  # Default public tier
         key = f"ip:{client_ip}"
 
         if auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
             try:
-                from jose import jwt
-                payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"], options={"verify_exp": False})
+                payload = jwt.decode(
+                    token,
+                    settings.JWT_SECRET,
+                    algorithms=["HS256"],
+                    options={"verify_exp": False},
+                )
                 role = payload.get("role", "CITIZEN")
                 sub = payload.get("sub", client_ip)
                 key = f"user:{sub}"
-                if role in ("ADMIN", "SYSTEM_ADMIN", "OFFICER", "AUDITOR", "DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C"):
-                    limit = 300 # Staff tier
+                if role in (
+                    "ADMIN",
+                    "SYSTEM_ADMIN",
+                    "OFFICER",
+                    "AUDITOR",
+                    "DEPARTMENT_A",
+                    "DEPARTMENT_B",
+                    "DEPARTMENT_C",
+                ):
+                    limit = 300  # Staff tier
                 else:
-                    limit = 120 # Citizen tier
-            except Exception:
+                    limit = 120  # Citizen tier
+            except (JWTError, TypeError, ValueError):
                 limit = 60
 
         now = time.time()
@@ -61,7 +76,9 @@ class AppWideRateLimitMiddleware(BaseHTTPMiddleware):
             cutoff = now - self.window
             self.history[key] = [t for t in self.history[key] if t > cutoff]
             if len(self.history[key]) >= limit:
-                req_id = getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID", "req-unknown")
+                req_id = getattr(
+                    request.state, "request_id", None
+                ) or request.headers.get("X-Request-ID", "req-unknown")
                 return JSONResponse(
                     status_code=429,
                     headers={"Retry-After": str(self.window), "X-Request-ID": req_id},
@@ -70,10 +87,10 @@ class AppWideRateLimitMiddleware(BaseHTTPMiddleware):
                             "code": "RATE_LIMIT_EXCEEDED",
                             "message": f"Too many requests. Sane limit is {limit} requests per minute.",
                             "request_id": req_id,
-                            "retry_after": self.window
+                            "retry_after": self.window,
                         },
-                        "detail": f"Rate limit exceeded. Maximum {limit} requests per minute allowed."
-                    }
+                        "detail": f"Rate limit exceeded. Maximum {limit} requests per minute allowed.",
+                    },
                 )
             self.history[key].append(now)
 

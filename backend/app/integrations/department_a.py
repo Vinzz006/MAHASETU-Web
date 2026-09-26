@@ -1,6 +1,8 @@
-from typing import Dict, Any
+from typing import Any
+
 from backend.app.integrations.base import DepartmentConnector
 from backend.app.services.transformation import DataTransformationEngine
+
 
 class DepartmentAConnector(DepartmentConnector):
     """
@@ -12,9 +14,11 @@ class DepartmentAConnector(DepartmentConnector):
     department_name = "Demo Department A (Identity Verification)"
     integration_type = "Modern REST API (OpenAPI 3.0)"
 
-    def verify_identity(self, citizen_canonical: Dict[str, Any]) -> Dict[str, Any]:
+    def verify_identity(self, citizen_canonical: dict[str, Any]) -> dict[str, Any]:
         # 1. Transform canonical data into Department A native payload format
-        dept_payload = DataTransformationEngine.from_canonical_to_dept_a(citizen_canonical)
+        dept_payload = DataTransformationEngine.from_canonical_to_dept_a(
+            citizen_canonical
+        )
 
         # 2. Simulate native REST API endpoint invocation
         name = dept_payload.get("citizen_name", "")
@@ -35,29 +39,33 @@ class DepartmentAConnector(DepartmentConnector):
                     "matched": is_verified,
                     "demographicMatch": True,
                     "districtCode": dept_payload.get("district", "Pune"),
-                    "registryRecordFound": True
-                }
-            }
+                    "registryRecordFound": True,
+                },
+            },
         }
 
-    def verify_eligibility(self, citizen_canonical: Dict[str, Any], retry_attempt: int = 0, **kwargs: Any) -> Dict[str, Any]:
+    def verify_eligibility(
+        self, citizen_canonical: dict[str, Any], retry_attempt: int = 0, **kwargs: Any
+    ) -> dict[str, Any]:
         return {
             "department_id": self.department_id,
             "status": "NOT_APPLICABLE",
-            "message": "Department A specializes in Identity Verification only."
+            "message": "Department A specializes in Identity Verification only.",
         }
 
-    def submit_application(self, application_canonical: Dict[str, Any]) -> Dict[str, Any]:
+    def submit_application(
+        self, application_canonical: dict[str, Any]
+    ) -> dict[str, Any]:
         return {
             "department_id": self.department_id,
             "status": "ACKNOWLEDGED",
-            "dept_reference": f"DEPTA-REF-{abs(hash(str(application_canonical))) % 90000 + 10000}"
+            "dept_reference": f"DEPTA-REF-{abs(hash(str(application_canonical))) % 90000 + 10000}",
         }
 
-    def get_status(self, application_id: str) -> Dict[str, Any]:
+    def get_status(self, application_id: str) -> dict[str, Any]:
         return {
             "department_id": self.department_id,
             "application_id": application_id,
             "health": "UP",
-            "active_connections": 14
+            "active_connections": 14,
         }

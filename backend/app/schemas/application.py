@@ -1,40 +1,45 @@
-from typing import Optional, Dict, Any, List
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class ServiceDefinition(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
     name: str
-    name_mr: Optional[str] = None
+    name_mr: str | None = None
     department: str
     description: str
-    description_mr: Optional[str] = None
-    participating_departments: List[str]
+    description_mr: str | None = None
+    participating_departments: list[str]
     sla_days: int
     is_active: bool = True
+
 
 class ServiceCreate(BaseModel):
     id: str
     name: str
-    name_mr: Optional[str] = None
+    name_mr: str | None = None
     department: str
     description: str
-    description_mr: Optional[str] = None
-    participating_departments: List[str] = Field(default_factory=list)
+    description_mr: str | None = None
+    participating_departments: list[str] = Field(default_factory=list)
     sla_days: int = 7
     is_active: bool = True
 
+
 class ServiceUpdate(BaseModel):
-    name: Optional[str] = None
-    name_mr: Optional[str] = None
-    department: Optional[str] = None
-    description: Optional[str] = None
-    description_mr: Optional[str] = None
-    participating_departments: Optional[List[str]] = None
-    sla_days: Optional[int] = None
-    is_active: Optional[bool] = None
+    name: str | None = None
+    name_mr: str | None = None
+    department: str | None = None
+    description: str | None = None
+    description_mr: str | None = None
+    participating_departments: list[str] | None = None
+    sla_days: int | None = None
+    is_active: bool | None = None
+
 
 class ApplicationCreate(BaseModel):
     service_id: str = "employment-support"
@@ -42,8 +47,9 @@ class ApplicationCreate(BaseModel):
     mobile: str
     dob: str
     district: str
-    annual_income: Optional[int] = 180000
-    employment_status: Optional[str] = "UNEMPLOYED"
+    annual_income: int | None = 180000
+    employment_status: str | None = "UNEMPLOYED"
+
 
 class ApplicationSummaryResponse(BaseModel):
     id: str
@@ -54,9 +60,10 @@ class ApplicationSummaryResponse(BaseModel):
     service_name: str
     status: str
     current_department: str
-    rejection_reason: Optional[str] = None
+    rejection_reason: str | None = None
     created_at: datetime
     updated_at: datetime
+
 
 class ApplicationDetailResponse(BaseModel):
     id: str
@@ -68,11 +75,11 @@ class ApplicationDetailResponse(BaseModel):
     service_name: str
     status: str
     current_department: str
-    citizen_data: Dict[str, Any]
-    rejection_reason: Optional[str] = None
-    active_consent: Optional[Dict[str, Any]] = None
-    workflow_steps: List[Dict[str, Any]] = []
-    transactions: List[Dict[str, Any]] = []
-    audit_logs: List[Dict[str, Any]] = []
+    citizen_data: dict[str, Any]
+    rejection_reason: str | None = None
+    active_consent: dict[str, Any] | None = None
+    workflow_steps: list[dict[str, Any]] = []
+    transactions: list[dict[str, Any]] = []
+    audit_logs: list[dict[str, Any]] = []
     created_at: datetime
     updated_at: datetime

@@ -1,6 +1,7 @@
-from typing import Optional
 from datetime import datetime
+
 from pydantic import BaseModel
+
 
 class NotificationResponse(BaseModel):
     id: str
@@ -8,6 +9,6 @@ class NotificationResponse(BaseModel):
     title: str
     message: str
     notification_type: str
-    reference_id: Optional[str] = None
+    reference_id: str | None = None
     is_read: bool
     created_at: datetime

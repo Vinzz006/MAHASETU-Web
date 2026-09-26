@@ -1,17 +1,23 @@
 import random
-import hashlib
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/meripehchaan-sso", tags=["MahaPehchaan — MeriPehchaan National SSO Federation"])
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/meripehchaan-sso",
+    tags=["MahaPehchaan — MeriPehchaan National SSO Federation"],
+)
+
 
 class TokenExchangeRequest(BaseModel):
-    meripehchaan_id_token: str = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.meripehchaan.national.gov.in"
+    meripehchaan_id_token: str = (
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.meripehchaan.national.gov.in"
+    )
     citizen_name: str = "Ananya Vikram Rao"
     home_state: str = "Karnataka"
     digilocker_linked_uid: str = "vault:uidai:109238475612"
+
 
 @router.get("/federation-status")
 def get_meripehchaan_federation_status():
@@ -27,10 +33,11 @@ def get_meripehchaan_federation_status():
         "supported_national_issuers": [
             "https://meripehchaan.gov.in/openid/connect",
             "https://janparichay.nic.in/auth",
-            "https://api.digitallocker.gov.in/oauth2"
+            "https://api.digitallocker.gov.in/oauth2",
         ],
-        "active_federated_sessions_today": 18450
+        "active_federated_sessions_today": 18450,
     }
+
 
 @router.post("/exchange-token")
 def exchange_meripehchaan_token_for_mahasetu_session(req: TokenExchangeRequest):
@@ -48,5 +55,5 @@ def exchange_meripehchaan_token_for_mahasetu_session(req: TokenExchangeRequest):
         "auth_provider": "MeriPehchaan (National Single Sign-On)",
         "cross_state_interoperability": f"Verified resident of {req.home_state} granted instant access to Maharashtra Interstate & Welfare Gateways",
         "zero_duplicate_registration": "TRUE (Eliminated redundant Aadhaar OTP/KYC submission)",
-        "timestamp": now_iso
+        "timestamp": now_iso,
     }

@@ -1,11 +1,13 @@
-import random
 import hashlib
+import random
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException
 
-router = APIRouter(prefix="/api/disaster", tags=["MahaAapada — Emergency Disaster Surge Federation"])
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+router = APIRouter(
+    prefix="/api/disaster", tags=["MahaAapada — Emergency Disaster Surge Federation"]
+)
 
 ACTIVE_DISASTER_DECLARATIONS = [
     {
@@ -22,8 +24,8 @@ ACTIVE_DISASTER_DECLARATIONS = [
         "fused_data_sources": [
             "ISRO Bhuvan / Copernicus Satellite Flood Mapping",
             "Mahabhulekh Land Records (Revenue Dept)",
-            "PFMS e-Kuber Direct Benefit Transfer Bus"
-        ]
+            "PFMS e-Kuber Direct Benefit Transfer Bus",
+        ],
     },
     {
         "event_id": "DISASTER-VIDARBHA-HAIL-2026",
@@ -39,15 +41,17 @@ ACTIVE_DISASTER_DECLARATIONS = [
         "fused_data_sources": [
             "Agri-Drone Crop Loss Geo-Survey",
             "7/12 Land Parcel Ownership Registry",
-            "Aadhaar-Linked Bank Accounts"
-        ]
-    }
+            "Aadhaar-Linked Bank Accounts",
+        ],
+    },
 ]
+
 
 class TriggerDisasterReliefRequest(BaseModel):
     event_id: str = "DISASTER-KONKAN-FLOOD-2026"
     target_district: str = "Ratnagiri"
     authorized_officer_badge: str = "IAS-SDMA-CHIEF-01"
+
 
 @router.get("/active-events")
 def get_active_disaster_events():
@@ -59,8 +63,9 @@ def get_active_disaster_events():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_active_emergencies": len(ACTIVE_DISASTER_DECLARATIONS),
         "protocol": "Rapid Cross-Department Crisis Disbursal Mesh (Zero Paperwork Mandate)",
-        "events": ACTIVE_DISASTER_DECLARATIONS
+        "events": ACTIVE_DISASTER_DECLARATIONS,
     }
+
 
 @router.post("/trigger-emergency-relief")
 def trigger_emergency_relief(req: TriggerDisasterReliefRequest):
@@ -68,15 +73,21 @@ def trigger_emergency_relief(req: TriggerDisasterReliefRequest):
     Executes 1-click disaster ex-gratia disbursal batch by fusing satellite GIS,
     Revenue land parcels, and PFMS bank accounts. Eliminates physical claim queues.
     """
-    event = next((e for e in ACTIVE_DISASTER_DECLARATIONS if e["event_id"] == req.event_id), None)
+    event = next(
+        (e for e in ACTIVE_DISASTER_DECLARATIONS if e["event_id"] == req.event_id), None
+    )
     if not event:
-        raise HTTPException(status_code=404, detail="Disaster declaration event not found.")
+        raise HTTPException(
+            status_code=404, detail="Disaster declaration event not found."
+        )
 
     now_iso = datetime.now(timezone.utc).isoformat()
     batch_ref = f"MAHA-RELIEF-BATCH-{random.randint(10000, 99999)}"
     disbursed_count = 4250
     total_outlay = disbursed_count * event["approved_relief_per_beneficiary_inr"]
-    audit_seal = hashlib.sha256(f"{batch_ref}:{req.event_id}:{total_outlay}:{now_iso}".encode()).hexdigest()
+    audit_seal = hashlib.sha256(
+        f"{batch_ref}:{req.event_id}:{total_outlay}:{now_iso}".encode()
+    ).hexdigest()
 
     return {
         "status": "EMERGENCY_RELIEF_DISBURSED_AUTOMATICALLY",
@@ -92,5 +103,5 @@ def trigger_emergency_relief(req: TriggerDisasterReliefRequest):
         "disbursal_channel": "PFMS APBS (Aadhaar Payment Bridge System)",
         "audit_seal_digest": audit_seal,
         "timestamp": now_iso,
-        "telemetry_note": f"Successfully disbursed ₹{total_outlay:,} directly to {disbursed_count:,} affected citizens in {req.target_district} using autonomous geospatial data fusion."
+        "telemetry_note": f"Successfully disbursed ₹{total_outlay:,} directly to {disbursed_count:,} affected citizens in {req.target_district} using autonomous geospatial data fusion.",
     }

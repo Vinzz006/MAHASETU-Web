@@ -1,10 +1,14 @@
-from typing import Dict, Any
-from backend.app.events.publisher import subscribe_event
+import logging
+from typing import Any
+
 from backend.app.database import SessionLocal
+from backend.app.events.publisher import subscribe_event
 from backend.app.models.application import Application
-from backend.app.models.user import User
 from backend.app.models.notification import Notification
+from backend.app.models.user import User
 from backend.app.services.sms import send_sms
+
+logger = logging.getLogger("mahasetu.events")
 
 # Real-time event notifications queue for dashboard / citizen alerts
 ACTIVE_NOTIFICATIONS = []
@@ -12,51 +16,52 @@ ACTIVE_NOTIFICATIONS = []
 EVENT_NOTIFICATION_MAP = {
     "APPLICATION_CREATED": {
         "title": "Application Registered",
-        "template": "Your application {app_id} has been registered on MahaSetu."
+        "template": "Your application {app_id} has been registered on MahaSetu.",
     },
     "CONSENT_GRANTED": {
         "title": "Digital Consent Recorded",
-        "template": "Digital consent recorded for {app_id}. Cross-departmental exchange initiated."
+        "template": "Digital consent recorded for {app_id}. Cross-departmental exchange initiated.",
     },
     "IDENTITY_VERIFIED": {
         "title": "Identity Verified",
-        "template": "Department A (Identity) has successfully verified your identity for application {app_id}."
+        "template": "Department A (Identity) has successfully verified your identity for application {app_id}.",
     },
     "ELIGIBILITY_VERIFIED": {
         "title": "Eligibility Verified",
-        "template": "Department B (Eligibility) has confirmed scheme criteria for application {app_id}."
+        "template": "Department B (Eligibility) has confirmed scheme criteria for application {app_id}.",
     },
     "APPROVAL_STARTED": {
         "title": "Approval In Progress",
-        "template": "Department C (Approval) is reviewing sanction for application {app_id}."
+        "template": "Department C (Approval) is reviewing sanction for application {app_id}.",
     },
     "ADMIN_APPROVED": {
         "title": "Admin Review Signed Off",
-        "template": "State Administrator signed off on application {app_id}."
+        "template": "State Administrator signed off on application {app_id}.",
     },
     "AUDITOR_CONFIRMED": {
         "title": "Audit Compliance Confirmed",
-        "template": "Independent Auditor confirmed compliance for application {app_id}."
+        "template": "Independent Auditor confirmed compliance for application {app_id}.",
     },
     "AUDITOR_FLAGGED": {
         "title": "Audit Flagged",
-        "template": "Auditor noted an irregularity for application {app_id}."
+        "template": "Auditor noted an irregularity for application {app_id}.",
     },
     "REWORK_REQUESTED": {
         "title": "Rework Requested",
-        "template": "Application {app_id} requires rework: {reason}. Please update your application."
+        "template": "Application {app_id} requires rework: {reason}. Please update your application.",
     },
     "APPLICATION_RESUBMITTED": {
         "title": "Application Resubmitted",
-        "template": "Application {app_id} resubmitted for verification."
+        "template": "Application {app_id} resubmitted for verification.",
     },
     "APPLICATION_COMPLETED": {
         "title": "Application Sanctioned",
-        "template": "Application {app_id} is completed and sanctioned!"
+        "template": "Application {app_id} is completed and sanctioned!",
     },
 }
 
-def event_logger_handler(event: Dict[str, Any]):
+
+def event_logger_handler(event: dict[str, Any]):
     """Default handler that formats notifications and logs activity."""
     event_type = event.get("eventType")
     app_id = event.get("applicationId")
@@ -68,7 +73,7 @@ def event_logger_handler(event: Dict[str, Any]):
         "title": f"{event_type.replace('_', ' ').title() if event_type else 'Event'}",
         "message": f"Application {app_id} processed by {dept_id}",
         "timestamp": event.get("timestamp"),
-        "read": False
+        "read": False,
     }
 
     ACTIVE_NOTIFICATIONS.append(notification)
@@ -77,7 +82,8 @@ def event_logger_handler(event: Dict[str, Any]):
 
     print(f"[MAHASETU EVENT] {event_type} | App: {app_id} | Dept: {dept_id}")
 
-def notification_and_sms_handler(event: Dict[str, Any]):
+
+def notification_and_sms_handler(event: dict[str, Any]):
     """
     Listens to lifecycle events, persists an in-app Notification for the citizen,
     and dispatches SMS alert via Twilio / demo fallback.
@@ -91,12 +97,18 @@ def notification_and_sms_handler(event: Dict[str, Any]):
 
     mapping = EVENT_NOTIFICATION_MAP[event_type]
     title = mapping["title"]
-    reason = metadata.get("rejection_reason", metadata.get("comments", "Action required"))
+    reason = metadata.get(
+        "rejection_reason", metadata.get("comments", "Action required")
+    )
     message = mapping["template"].format(app_id=app_id, reason=reason)
 
     db = SessionLocal()
     try:
-        app = db.query(Application).filter(Application.application_number == app_id).first()
+        app = (
+            db.query(Application)
+            .filter(Application.application_number == app_id)
+            .first()
+        )
         if not app or not app.citizen_id:
             return
 
@@ -111,7 +123,7 @@ def notification_and_sms_handler(event: Dict[str, Any]):
             message=message,
             notification_type=event_type,
             reference_id=app.application_number,
-            is_read=False
+            is_read=False,
         )
         db.add(notif)
         db.commit()
@@ -119,15 +131,18 @@ def notification_and_sms_handler(event: Dict[str, Any]):
         # 2. Dispatch SMS
         if citizen.mobile:
             try:
-                send_sms(to_phone=citizen.mobile, message_body=f"[MahaSetu] {title}: {message}")
-            except Exception as sms_err:
-                print(f"[SMS Error]: {sms_err}")
-    except Exception as err:
-        print(f"[NotificationHandler Error]: {err}")
+                send_sms(
+                    to_phone=citizen.mobile,
+                    message_body=f"[MahaSetu] {title}: {message}",
+                )
+            except Exception as sms_err:  # noqa: BLE001 - external SMS failure
+                logger.warning("SMS dispatch failed in event handler: %s", sms_err)
+    except Exception as err:  # noqa: BLE001 - subscriber boundary
+        logger.error("NotificationHandler error: %s", err)
     finally:
         db.close()
+
 
 def register_default_handlers():
     subscribe_event(event_logger_handler)
     subscribe_event(notification_and_sms_handler)
-

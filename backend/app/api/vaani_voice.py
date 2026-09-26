@@ -1,18 +1,19 @@
-import random
-from typing import Dict, Any, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-
 from backend.app.database import get_db
 from backend.app.models.application import Application
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api/vaani", tags=["AI Multilingual Voice Assistant (MahaSetu Vaani)"])
+router = APIRouter(
+    prefix="/api/vaani", tags=["AI Multilingual Voice Assistant (MahaSetu Vaani)"]
+)
+
 
 class VaaniQueryRequest(BaseModel):
     query_text: str
     language: str = "mr"  # "mr" (Marathi) or "en" (English)
-    citizen_mobile: Optional[str] = "9999999999"
+    citizen_mobile: str | None = "9999999999"
+
 
 @router.post("/query")
 def process_vaani_voice_query(req: VaaniQueryRequest, db: Session = Depends(get_db)):
@@ -25,14 +26,28 @@ def process_vaani_voice_query(req: VaaniQueryRequest, db: Session = Depends(get_
     app_status = latest_app.status if latest_app else "COMPLETED"
 
     # Intent Detection based on Marathi & English keywords
-    if any(k in q for k in ["status", "स्थिती", "कुठे आहे", "काय झाले", "track", "अर्जाची"]):
+    if any(
+        k in q for k in ["status", "स्थिती", "कुठे आहे", "काय झाले", "track", "अर्जाची"]
+    ):
         intent = "STATUS_INQUIRY"
-        status_label_mr = "मंजूर झाली आहे आणि डिजिटल सेवा पासपोर्ट जारी करण्यात आला आहे" if app_status == "COMPLETED" else "सध्या तपासणी प्रक्रियेत आहे"
-        status_label_en = "has been Approved and the Digital Service Passport is Issued" if app_status == "COMPLETED" else "is currently under multi-department verification"
+        status_label_mr = (
+            "मंजूर झाली आहे आणि डिजिटल सेवा पासपोर्ट जारी करण्यात आला आहे"
+            if app_status == "COMPLETED"
+            else "सध्या तपासणी प्रक्रियेत आहे"
+        )
+        status_label_en = (
+            "has been Approved and the Digital Service Passport is Issued"
+            if app_status == "COMPLETED"
+            else "is currently under multi-department verification"
+        )
 
         response_mr = f"नमस्कार! आपला अर्ज क्रमांक {app_num} {status_label_mr}. महासेतू पोर्टलवर सर्व विभागांचा समन्वय पूर्ण झाला आहे."
         response_en = f"Hello! Your application {app_num} {status_label_en}. Multi-department verification has been synchronized via MahaSetu."
-        action_url = f"/applications/{latest_app.id}/track" if latest_app else "/citizen/dashboard"
+        action_url = (
+            f"/applications/{latest_app.id}/track"
+            if latest_app
+            else "/citizen/dashboard"
+        )
 
     elif any(k in q for k in ["farmer", "शेतकरी", "dbt", "अनुदान", "शेती", "कृषी"]):
         intent = "FARMER_SCHEME_INQUIRY"
@@ -74,5 +89,5 @@ def process_vaani_voice_query(req: VaaniQueryRequest, db: Session = Depends(get_
         "action_url": action_url,
         "application_number": app_num,
         "application_status": app_status,
-        "audio_synthesis_ready": True
+        "audio_synthesis_ready": True,
     }

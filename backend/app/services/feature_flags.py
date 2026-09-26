@@ -1,11 +1,12 @@
 import os
-from typing import Dict, Any
+
 from backend.app.config import settings
 from backend.app.firebase import is_demo_mode
 
+
 class FeatureFlags:
     def __init__(self):
-        self._overrides: Dict[str, bool] = {}
+        self._overrides: dict[str, bool] = {}
 
     def is_enabled(self, flag: str, default: bool = False) -> bool:
         """Evaluates whether a given feature flag is active."""
@@ -22,16 +23,17 @@ class FeatureFlags:
         if flag == "DEMO_PERSONAS":
             return is_demo_mode()
         elif flag == "SMS_NOTIFICATIONS":
-            return bool(settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN) or is_demo_mode()
+            return (
+                bool(settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN)
+                or is_demo_mode()
+            )
         elif flag == "REDIS_CACHE":
             return bool(settings.REDIS_URL)
         elif flag == "AI_ASSISTANT":
             return bool(settings.GEMINI_API_KEY) or is_demo_mode()
         elif flag == "RATE_LIMITING":
             return settings.ENVIRONMENT != "test"
-        elif flag == "PDF_RECEIPTS":
-            return True
-        elif flag == "CSV_EXPORTS":
+        elif flag == "PDF_RECEIPTS" or flag == "CSV_EXPORTS":
             return True
 
         return default
@@ -44,7 +46,7 @@ class FeatureFlags:
         """Clears all in-memory overrides."""
         self._overrides.clear()
 
-    def get_all_flags(self) -> Dict[str, bool]:
+    def get_all_flags(self) -> dict[str, bool]:
         """Returns snapshot of standard platform flags."""
         standard_flags = [
             "DEMO_PERSONAS",
@@ -56,5 +58,6 @@ class FeatureFlags:
             "CSV_EXPORTS",
         ]
         return {f: self.is_enabled(f) for f in standard_flags}
+
 
 feature_flags = FeatureFlags()

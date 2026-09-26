@@ -1,6 +1,6 @@
-import os
 import logging
-from typing import List, Dict, Any, Optional
+import os
+from typing import Any
 
 try:
     from google import genai
@@ -11,7 +11,8 @@ except ImportError:
 
 logger = logging.getLogger("mahasetu.assistant")
 
-def get_gemini_metadata() -> Dict[str, Any]:
+
+def get_gemini_metadata() -> dict[str, Any]:
     """Returns the operational status and model metadata for Google Gemini."""
     key = os.getenv("GEMINI_API_KEY", "").strip()
     model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
@@ -19,32 +20,49 @@ def get_gemini_metadata() -> Dict[str, Any]:
         "gemini_active": bool(key),
         "model": model,
         "provider": "Google Gemini",
-        "grounding_enabled": True
+        "grounding_enabled": True,
     }
+
 
 def build_system_context(
     user_name: str,
-    applications: List[Dict[str, Any]],
-    profile_info: Optional[Dict[str, Any]],
-    services: List[Dict[str, Any]]
+    applications: list[dict[str, Any]],
+    profile_info: dict[str, Any] | None,
+    services: list[dict[str, Any]],
 ) -> str:
     """Builds an authoritative system prompt grounding Gemini in live citizen state and state schemes."""
-    apps_text = "\n".join([
-        f"- Application Number: {a['application_number']} | Service: {a.get('service_name', a.get('service_id'))} | Status: {a['status']} | Current Dept: {a['current_department']}"
-        + (f" | Rework/Rejection Note: {a['rejection_reason']}" if a.get('rejection_reason') else "")
-        for a in applications
-    ]) if applications else "No active applications submitted yet."
+    apps_text = (
+        "\n".join(
+            [
+                f"- Application Number: {a['application_number']} | Service: {a.get('service_name', a.get('service_id'))} | Status: {a['status']} | Current Dept: {a['current_department']}"
+                + (
+                    f" | Rework/Rejection Note: {a['rejection_reason']}"
+                    if a.get("rejection_reason")
+                    else ""
+                )
+                for a in applications
+            ]
+        )
+        if applications
+        else "No active applications submitted yet."
+    )
 
-    services_text = "\n".join([
-        f"- ID: {s['id']} | Title: {s['name']} | Dept: {s.get('department', 'General')} | SLA: {s.get('sla_days', 7)} days | Description: {s.get('description', '')}"
-        for s in services
-    ])
+    services_text = "\n".join(
+        [
+            f"- ID: {s['id']} | Title: {s['name']} | Dept: {s.get('department', 'General')} | SLA: {s.get('sla_days', 7)} days | Description: {s.get('description', '')}"
+            for s in services
+        ]
+    )
 
     profile_text = (
-        f"Profile completed: {profile_info.get('profile_completion_percentage', 0)}%. "
-        f"Aadhaar linked: {'Yes' if profile_info.get('aadhaar_number') else 'No'}. "
-        f"District: {profile_info.get('district', 'Not specified')}."
-    ) if profile_info else "Resident profile has not been filled yet."
+        (
+            f"Profile completed: {profile_info.get('profile_completion_percentage', 0)}%. "
+            f"Aadhaar linked: {'Yes' if profile_info.get('aadhaar_number') else 'No'}. "
+            f"District: {profile_info.get('district', 'Not specified')}."
+        )
+        if profile_info
+        else "Resident profile has not been filled yet."
+    )
 
     return f"""You are MahaSetu Mitra, the intelligent multilingual AI assistant powered by Google Gemini for Maharashtra State's MahaSetu Citizen Services Interoperability Platform (Problem Statement 26129).
 
@@ -86,17 +104,20 @@ Guidelines for MahaSetu Mitra:
    - Use clean Markdown with bullet points, bold key terms, and concise paragraphs.
 """
 
+
 def generate_assistant_response(
     user_message: str,
-    conversation_history: List[Dict[str, str]],
+    conversation_history: list[dict[str, str]],
     system_context: str,
-    applications: List[Dict[str, Any]],
-    services: List[Dict[str, Any]]
+    applications: list[dict[str, Any]],
+    services: list[dict[str, Any]],
 ) -> str:
     """Generates an intelligent assistant response using Google Gemini (google-genai SDK), with automatic fallback."""
     demo_mode = os.getenv("DEMO_MODE", "true").lower() in ("true", "1", "yes")
     gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    model_name = (
+        os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    )
 
     # Enforce API key requirement in live non-demo mode for compliance
     if not gemini_api_key:
@@ -111,8 +132,7 @@ def generate_assistant_response(
     try:
         # Live Gemini Client configured with 15s timeout to prevent threadpool starvation
         client = genai.Client(
-            api_key=gemini_api_key,
-            http_options=types.HttpOptions(timeout=15000)
+            api_key=gemini_api_key, http_options=types.HttpOptions(timeout=15000)
         )
 
         # Build multi-turn chat contents adhering strictly to google-genai types
@@ -122,16 +142,12 @@ def generate_assistant_response(
             role = "user" if msg["sender"] == "user" else "model"
             chat_contents.append(
                 types.Content(
-                    role=role,
-                    parts=[types.Part.from_text(text=msg["content"])]
+                    role=role, parts=[types.Part.from_text(text=msg["content"])]
                 )
             )
 
         chat_contents.append(
-            types.Content(
-                role="user",
-                parts=[types.Part.from_text(text=user_message)]
-            )
+            types.Content(role="user", parts=[types.Part.from_text(text=user_message)])
         )
 
         config = types.GenerateContentConfig(
@@ -141,9 +157,7 @@ def generate_assistant_response(
         )
 
         response = client.models.generate_content(
-            model=model_name,
-            contents=chat_contents,
-            config=config
+            model=model_name, contents=chat_contents, config=config
         )
 
         if response and response.text:
@@ -151,29 +165,35 @@ def generate_assistant_response(
 
         return "I am processing your inquiry with MahaSetu records. Please verify your application status on the Tracking page."
 
-    except Exception as exc:
-        logger.error("Google Gemini invocation failed: %s", exc)
+    except Exception:
+        logger.exception("Google Gemini invocation failed")
         if demo_mode:
             return _mock_grounded_response(user_message, applications, services)
         return "MahaSetu Mitra AI assistant is temporarily unavailable. Please try again in a few moments or verify your application on the Tracking page."
 
+
 def _mock_grounded_response(
-    query: str,
-    applications: List[Dict[str, Any]],
-    services: List[Dict[str, Any]]
+    query: str, applications: list[dict[str, Any]], services: list[dict[str, Any]]
 ) -> str:
     q = query.lower()
 
     # Marathi queries (मराठी)
-    if any(w in query for w in ["अर्जाची", "स्थिती", "योजना", "कागदपत्रे", "नमस्कार", "अर्ज"]):
+    if any(
+        w in query
+        for w in ["अर्जाची", "स्थिती", "योजना", "कागदपत्रे", "नमस्कार", "अर्ज"]
+    ):
         if any(w in query for w in ["स्थिती", "अर्ज"]):
             if not applications:
                 return "तुमचा कोणताही सक्रिय अर्ज सध्या सादर केलेला नाही. तुम्ही **योजना (Services)** विभागात जाऊन नवीन अर्ज करू शकता."
             lines = ["तुमच्या अर्जांची सद्यस्थिती खालीलप्रमाणे आहे:"]
             for a in applications:
-                lines.append(f"• **{a['application_number']}**: सद्यस्थिती **{a['status']}** ({a['current_department']}).")
+                lines.append(
+                    f"• **{a['application_number']}**: सद्यस्थिती **{a['status']}** ({a['current_department']})."
+                )
                 if a.get("rejection_reason"):
-                    lines.append(f"  ⚠️ दुरुस्ती सूचना: {a['rejection_reason']}. कृपया ट्रॅकिंग पानावर जाऊन माहिती दुरुस्त करा.")
+                    lines.append(
+                        f"  ⚠️ दुरुस्ती सूचना: {a['rejection_reason']}. कृपया ट्रॅकिंग पानावर जाऊन माहिती दुरुस्त करा."
+                    )
             return "\n".join(lines)
         return "नमस्कार! मी **महासेतू मित्र** (Google Gemini द्वारे समर्थित) आहे. मी तुम्हाला महाराष्ट्र शासनाच्या विविध योजना, अर्जांची स्थिती आणि थेट लाभ हस्तांतरण (DBT) विषयी मदत करू शकतो."
 
@@ -184,9 +204,13 @@ def _mock_grounded_response(
                 return "वर्तमान में आपका कोई सक्रिय आवेदन नहीं है। आप **सेवाएं (Services)** अनुभाग में जाकर योजनाओं के लिए आवेदन कर सकते हैं।"
             lines = ["आपके आवेदन की वर्तमान स्थिति:"]
             for a in applications:
-                lines.append(f"• **{a['application_number']}**: स्थिति **{a['status']}** ({a['current_department']}).")
+                lines.append(
+                    f"• **{a['application_number']}**: स्थिति **{a['status']}** ({a['current_department']})."
+                )
                 if a.get("rejection_reason"):
-                    lines.append(f"  ⚠️ सुधार अनुरोध: {a['rejection_reason']}. कृपया ट्रैकिंग पेज पर जाकर विवरण अपडेट करें।")
+                    lines.append(
+                        f"  ⚠️ सुधार अनुरोध: {a['rejection_reason']}. कृपया ट्रैकिंग पेज पर जाकर विवरण अपडेट करें।"
+                    )
             return "\n".join(lines)
         return "नमस्ते! मैं **महासेतु मित्र** (Google Gemini द्वारा समर्थित) हूँ। मैं महाराष्ट्र सरकार की योजनाओं, आवेदन ट्रैकिंग और डीबीटी से संबंधित जानकारी में आपकी सहायता कर सकता हूँ।"
 
@@ -203,12 +227,28 @@ def _mock_grounded_response(
             if a.get("rejection_reason"):
                 line += f"\n  ⚠️ **Rework Note:** {a['rejection_reason']}. Please go to Tracking to update and resubmit."
             lines.append(line)
-        lines.append("\nYou can view full step-by-step progress on your **Tracking** page.")
+        lines.append(
+            "\nYou can view full step-by-step progress on your **Tracking** page."
+        )
         return "\n".join(lines)
 
     # 2. Scheme query / What schemes
-    if any(w in q for w in ["scheme", "pension", "farmer", "employment", "service", "available", "eligible"]):
-        s_names = [f"• **{s['name']}** — SLA: {s.get('sla_days', 7)} days ({s.get('department', 'Dept')})" for s in services[:5]]
+    if any(
+        w in q
+        for w in [
+            "scheme",
+            "pension",
+            "farmer",
+            "employment",
+            "service",
+            "available",
+            "eligible",
+        ]
+    ):
+        s_names = [
+            f"• **{s['name']}** — SLA: {s.get('sla_days', 7)} days ({s.get('department', 'Dept')})"
+            for s in services[:5]
+        ]
         return (
             "MahaSetu connects you directly with Maharashtra state schemes without paper visits:\n\n"
             + "\n".join(s_names)
@@ -216,7 +256,10 @@ def _mock_grounded_response(
         )
 
     # 3. Documents / Aadhaar / Requirements
-    if any(w in q for w in ["document", "aadhaar", "proof", "passport", "upload", "required"]):
+    if any(
+        w in q
+        for w in ["document", "aadhaar", "proof", "passport", "upload", "required"]
+    ):
         return (
             "For most MahaSetu services, you do not need physical paper attestations! "
             "Once you enter your details in **Resident Profile**, MahaSetu securely federates your identity through UIDAI (Dept A) and Social Welfare (Dept B). "
