@@ -41,12 +41,14 @@ from backend.app.api.green_telemetry import router as green_router
 from backend.app.api.grievance_ombudsperson import router as nivarana_router
 from backend.app.api.grievances import router as grievances_router
 from backend.app.api.industrial_emissions import router as emissions_router
+from backend.app.api.interoperability import router as interoperability_router
 from backend.app.api.interstate_bridge import router as interstate_router
 from backend.app.api.jal_jeevan_telemetry import router as jal_router
 from backend.app.api.kiosk_solar_telemetry import router as solar_router
 from backend.app.api.life_events_mesh import router as life_events_router
 from backend.app.api.marriage_registry import router as marriage_router
 from backend.app.api.master_showcase import router as master_showcase_router
+from backend.app.api.mdm import router as mdm_router
 from backend.app.api.meripehchaan_sso import router as meripehchaan_router
 from backend.app.api.merkle_audit_ledger import router as merkle_router
 from backend.app.api.mesh_autonomous import router as autonomous_router
@@ -65,6 +67,7 @@ from backend.app.api.services import router as services_router
 from backend.app.api.sla_engine import router as sla_router
 from backend.app.api.smart_escrow_erupi import router as escrow_router
 from backend.app.api.solar_feeder_grid import router as solar_feeder_router
+from backend.app.api.sso import router as sso_router
 from backend.app.api.tender_shield import router as tender_router
 from backend.app.api.treasury_beams import router as treasury_router
 from backend.app.api.tribunal_nyaya import router as nyaya_router
@@ -279,6 +282,10 @@ _mount_on_v1(assistant_router)
 _mount_on_v1(audit_logs_router)
 _mount_on_v1(vc_router)
 _mount_on_v1(export_router)
+_mount_on_v1(interoperability_router)
+_mount_on_v1(mdm_router)
+_mount_on_v1(sso_router)
+
 
 # Mount Innovation Lab Routers
 if settings.ENABLE_INNOVATION_LAB:
@@ -454,9 +461,13 @@ def platform_stats():
             "problem_statement": "26129",
             "compliance": [
                 "DPDP Act 2023",
+                "DPDP-Aligned Consent Management",
+                "SHA-256 Tamper-Evident Audit Trail",
                 "W3C VC Standard",
                 "RFC 6962 Merkle",
                 "NIST PQC",
+                "OpenID Connect Ready",
+                "OpenAPI 3.0 Standard",
             ],
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
